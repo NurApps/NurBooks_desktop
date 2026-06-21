@@ -1,0 +1,89 @@
+"""
+Конфигурация приложения NurBooks
+"""
+import os
+import sys
+from pathlib import Path
+
+APP_NAME = "NurBooks"
+APP_VERSION = "1.3.0 Beta"
+APP_DESCRIPTION = "Электронная исламская библиотека от NurApps."
+DEVELOPERS = ["Salikh Suyundikov", "Daniyal Kislicky"]
+TESTERS = ["Mukhammad Odilov"]
+DESIGNERS = ["Muslim Temirbekov"]
+TELEGRAM_CONTACTS = ["@salih2014suyundikov"]
+CONTACT_EMAIL = "salixsuyundikov@gmail.com"
+
+# Определяем базовый путь. Если exe - папка с exe, иначе - текущая папка.
+if getattr(sys, 'frozen', False):
+    BASE_PATH = os.path.dirname(sys.executable)
+else:
+    BASE_PATH = os.path.abspath(".")
+
+# Системная папка загрузок Windows (по умолчанию)
+SYSTEM_DOWNLOADS_PATH = str(Path.home() / "Downloads")
+
+# Папка для загрузок NurBooks в системной папке загрузок
+NURBOOKS_DOWNLOADS_PATH = str(Path.home() / "Downloads" / "downloads-nurbooks")
+
+# Пути по умолчанию
+DEFAULT_DOWNLOAD_PATH = NURBOOKS_DOWNLOADS_PATH  # Используется отдельная папка downloads-nurbooks
+DEFAULT_SAVE_PATH = os.path.join(BASE_PATH, "saved_books")
+DEFAULT_DATA_PATH = os.path.join(BASE_PATH, "data")
+DEFAULT_ASSETS_PATH = os.path.join(BASE_PATH, "assets")
+DEFAULT_PDFS_PATH = os.path.join(BASE_PATH, "pdfs")
+SYSTEM_DOWNLOADS_PATH = str(Path.home() / "Downloads")  # Системная папка загрузок
+# Настройки отображения
+ITEMS_PER_PAGE = 12
+
+# Настройки электронной почты
+EMAIL_SMTP_SERVER = "smtp.gmail.com"
+EMAIL_SMTP_PORT = 587
+EMAIL_ADDRESS = ""  
+EMAIL_PASSWORD = "" 
+
+# Настройки Firebase
+class FirebaseConfig:
+    """Конфигурация Firebase"""
+    PROJECT_ID = "nurbooks-a0eae"
+    API_KEY = "AIzaSyANvlQklcvuN0CvJyAPgBSgkx5WxBnBU0I"
+    AUTH_DOMAIN = "nurbooks-a0eae.firebaseapp.com"
+    MESSAGING_SENDER_ID = "450800613168"
+    APP_ID = "1:450800613168:web:fe73241e86fdf4ed053af5"
+    SERVICE_ACCOUNT_KEY_PATH = "serviceAccountKey.json"
+    
+    @classmethod
+    def to_dict(cls):
+        """Возвращает конфигурацию в dict формате"""
+        return {
+            'projectId': cls.PROJECT_ID,
+            'apiKey': cls.API_KEY,
+            'authDomain': cls.AUTH_DOMAIN,
+            'messagingSenderId': cls.MESSAGING_SENDER_ID,
+            'appId': cls.APP_ID
+        }
+    
+    @classmethod
+    def is_configured(cls):
+        """Проверяет, настроен ли Firebase"""
+        import os
+        return (cls.API_KEY != "AIzaSyXXXXXXXXXXXX" and 
+                os.path.exists(cls.SERVICE_ACCOUNT_KEY_PATH))
+
+
+# Настройки GitHub Releases для хранения PDF и обложек
+class GitHubConfig:
+    """Конфигурация GitHub Releases"""
+    REPO_OWNER = "NurApps"
+    REPO_NAME = "NurBooks-Releases"
+    GITHUB_TOKEN = ""  # Personal Access Token
+    
+    @classmethod
+    def get_release_url(cls, asset_name: str) -> str:
+        """Формирует URL для скачивания файла из GitHub Releases"""
+        return f"https://github.com/{cls.REPO_OWNER}/{cls.REPO_NAME}/releases/latest/download/{asset_name}"
+    
+    @classmethod
+    def get_api_url(cls) -> str:
+        """URL API для получения информации о релизах"""
+        return f"https://api.github.com/repos/{cls.REPO_OWNER}/{cls.REPO_NAME}/releases/latest"

@@ -1,0 +1,66 @@
+2026-05-19 13:06:03 | WARNING  | src.core.firebase_client | __init__:36 | Firebase не настроен. Используется режим Offline.
+2026-05-23 21:39:32 | WARNING  | src.core.firebase_client | __init__:36 | Firebase не настроен. Используется режим Offline.
+2026-05-24 06:36:28 | WARNING  | src.core.firebase_client | __init__:36 | Firebase не настроен. Используется режим Offline.
+2026-05-24 07:19:57 | WARNING  | src.core.firebase_client | __init__:36 | Firebase не настроен. Используется режим Offline.
+2026-05-24 07:20:02 | WARNING  | src.core.firebase_client | __init__:36 | Firebase не настроен. Используется режим Offline.
+2026-05-24 07:21:07 | WARNING  | src.core.firebase_client | __init__:36 | Firebase не настроен. Используется режим Offline.
+2026-05-24 07:58:15 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-24 07:58:16 | CRITICAL | src.core.firebase_client | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "D:\projects\NurBooks_desktop\src\ui\pages\auth_page.py", line 1, in <module>
+    import flet as ft
+ModuleNotFoundError: No module named 'flet'
+2026-05-24 07:58:20 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-24 19:51:20 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-25 10:44:08 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-25 11:35:28 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-25 16:28:28 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-25 17:00:44 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-25 18:27:44 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-25 19:51:50 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-25 23:25:48 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-26 05:05:28 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-26 08:13:18 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-26 10:42:17 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-26 16:13:59 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-26 23:46:08 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 00:09:19 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 00:10:27 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 00:38:44 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 08:57:02 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 18:16:22 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 18:16:23 | CRITICAL | src.core.firebase_client | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 11, in <module>
+    from src.ui.pages.book_view import BookViewPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\book_view.py", line 1038
+    stats.increment_download_count(self.book.id)
+IndentationError: unexpected indent
+2026-05-27 18:18:48 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 18:21:24 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-27 18:21:45 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-28 13:34:06 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-28 13:38:04 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 08:21:31 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 09:08:49 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 09:09:45 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 09:24:06 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 09:28:41 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 12:56:36 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 12:56:45 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-05-29 13:08:29 | WARNING  | src.core.firebase_client | __init__:25 | Firebase не настроен. Используется режим Offline.
+2026-06-02 15:49:36 | ERROR    | src.core.firebase_client | _initialize_firebase:48 | Ошибка инициализации Firebase: name 'FirebaseConfig' is not defined
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\core\firebase_client.py", line 34, in _initialize_firebase
+    cred = credentials.Certificate(FirebaseConfig.SERVICE_ACCOUNT_KEY_PATH)
+                                   ^^^^^^^^^^^^^^
+NameError: name 'FirebaseConfig' is not defined. Did you mean: 'FirebaseClient'?
+2026-06-02 17:26:31 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-02 17:26:31 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-03 10:20:13 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-03 10:20:13 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-03 15:53:24 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-03 15:53:24 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-03 16:02:16 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-03 16:02:16 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно

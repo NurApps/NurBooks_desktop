@@ -1,0 +1,87 @@
+2026-05-18 14:24:19 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 14, in <module>
+    from src.ui.pages.settings_page import SettingsPage
+  File "D:\projects\NurBooks_desktop\src\ui\pages\settings_page.py", line 75
+    self.cloudflare_api_token_field = ft.TextField(
+                                                  ^
+SyntaxError: '(' was never closed
+2026-05-18 14:24:19 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 14, in <module>
+    from src.ui.pages.settings_page import SettingsPage
+  File "D:\projects\NurBooks_desktop\src\ui\pages\settings_page.py", line 75
+    self.cloudflare_api_token_field = ft.TextField(
+                                                  ^
+SyntaxError: '(' was never closed
+2026-05-18 14:24:19 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 14, in <module>
+    from src.ui.pages.settings_page import SettingsPage
+  File "D:\projects\NurBooks_desktop\src\ui\pages\settings_page.py", line 75
+    self.cloudflare_api_token_field = ft.TextField(
+                                                  ^
+SyntaxError: '(' was never closed
+2026-05-18 14:31:32 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 19, in <module>
+    from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
+  File "d:\projects\NurBooks_desktop\src\ui\pages\pdf_reader.py", line 674
+    self.page.update()
+IndentationError: unexpected indent
+2026-05-18 14:32:07 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 19, in <module>
+    from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
+  File "D:\projects\NurBooks_desktop\src\ui\pages\pdf_reader.py", line 675
+    except Exception as ex:
+    ^^^^^^
+SyntaxError: invalid syntax
+2026-05-18 14:32:07 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 19, in <module>
+    from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
+  File "D:\projects\NurBooks_desktop\src\ui\pages\pdf_reader.py", line 675
+    except Exception as ex:
+    ^^^^^^
+SyntaxError: invalid syntax
+2026-05-18 14:32:07 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 19, in <module>
+    from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
+  File "D:\projects\NurBooks_desktop\src\ui\pages\pdf_reader.py", line 675
+    except Exception as ex:
+    ^^^^^^
+SyntaxError: invalid syntax
+2026-05-18 14:33:49 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 961, in <module>
+    app = ft.App(page=NurBooksApp, assets_dir=resource_path(""))
+          ^^^^^^
+AttributeError: module 'flet' has no attribute 'App'. Did you mean: 'app'?
+2026-05-27 18:24:22 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=15 (общий счётчик: 2)
+2026-05-27 18:25:19 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=2 (общий счётчик: 2)
+2026-05-28 13:38:05 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 14, in <module>
+    from src.ui.pages.settings_page import SettingsPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\settings_page.py", line 8, in <module>
+    from src.ui.pages.auth_page import AccountPage
+ModuleNotFoundError: No module named 'src.ui.pages.auth_page'
+2026-05-29 08:21:32 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 14, in <module>
+    from src.ui.pages.settings_page import SettingsPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\settings_page.py", line 83
+    ),
+    ^
+SyntaxError: positional argument follows keyword argument
+2026-05-29 09:08:49 | CRITICAL | src.ui.pages.book_view | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 15, in <module>
+    from src.ui.pages.auth_page import AccountPage
+ModuleNotFoundError: No module named 'src.ui.pages.auth_page'
+2026-06-02 15:49:55 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=1 (общий счётчик: 2)
+2026-06-02 16:41:17 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=20 (общий счётчик: 2)
+2026-06-02 17:26:47 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=1 (общий счётчик: 5)
+2026-06-03 10:20:40 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=19 (общий счётчик: 3)
