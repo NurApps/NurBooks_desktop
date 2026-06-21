@@ -1,0 +1,26 @@
+2026-05-16 20:49:35 | CRITICAL | NurBooks | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 10, in <module>
+    from src.ui.pages.catalog_page import CatalogPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\catalog_page.py", line 3, in <module>
+    from src.core.storage import Storage
+  File "d:\projects\NurBooks_desktop\src\core\storage.py", line 10, in <module>
+    from src.core.database import Database
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 7, in <module>
+    from src.core.analytics import Analytics
+  File "d:\projects\NurBooks_desktop\src\core\analytics.py", line 11, in <module>
+    from src.core.database import Database
+ImportError: cannot import name 'Database' from partially initialized module 'src.core.database' (most likely due to a circular import) (d:\projects\NurBooks_desktop\src\core\database.py)
+2026-05-18 14:22:06 | CRITICAL | NurBooks | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 10, in <module>
+    from src.ui.pages.catalog_page import CatalogPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\catalog_page.py", line 3, in <module>
+    from src.core.storage import Storage
+  File "d:\projects\NurBooks_desktop\src\core\storage.py", line 10, in <module>
+    from src.core.database import Database
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 7, in <module>
+    from src.core.analytics import Analytics
+  File "d:\projects\NurBooks_desktop\src\core\analytics.py", line 11, in <module>
+    from src.core.database import Database
+ImportError: cannot import name 'Database' from partially initialized module 'src.core.database' (most likely due to a circular import) (d:\projects\NurBooks_desktop\src\core\database.py)

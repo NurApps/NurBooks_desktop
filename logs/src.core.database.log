@@ -1,0 +1,82 @@
+2026-04-30 19:39:41 | CRITICAL | src.core.database | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "D:\projects\NurBooks 111\src\core\database.py", line 19, in __init__
+    self.init_db()
+  File "D:\projects\NurBooks 111\src\core\database.py", line 57, in init_db
+    conn.commit()
+sqlite3.ProgrammingError: Cannot operate on a closed database.
+2026-04-30 19:47:24 | CRITICAL | src.core.database | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "<string>", line 44, in <module>
+  File "C:\Users\Huawei\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1251.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 2: character maps to <undefined>
+2026-05-14 21:44:13 | CRITICAL | src.core.database | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 11, in <module>
+    from src.ui.pages.book_view import BookViewPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\book_view.py", line 1
+    666666import flet as ft
+         ^
+SyntaxError: invalid decimal literal
+2026-05-14 21:44:13 | CRITICAL | src.core.database | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 11, in <module>
+    from src.ui.pages.book_view import BookViewPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\book_view.py", line 1
+    666666import flet as ft
+         ^
+SyntaxError: invalid decimal literal
+2026-05-15 21:47:49 | CRITICAL | src.core.database | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 11, in <module>
+    from src.ui.pages.book_view import BookViewPage
+  File "d:\projects\NurBooks_desktop\src\ui\pages\book_view.py", line 882
+    result = shell_execute(
+                          ^
+SyntaxError: '(' was never closed
+2026-05-18 22:09:35 | ERROR    | src.core.database | add_bookmark:355 | Ошибка добавления закладки в базу данных: 'Analytics' object has no attribute 'track_bookmark_added'
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 352, in add_bookmark
+    self.analytics.track_bookmark_added(bookmark) # Отслеживаем добавление закладки
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Analytics' object has no attribute 'track_bookmark_added'
+2026-05-18 22:09:36 | ERROR    | src.core.database | add_bookmark:355 | Ошибка добавления закладки в базу данных: 'Analytics' object has no attribute 'track_bookmark_added'
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 352, in add_bookmark
+    self.analytics.track_bookmark_added(bookmark) # Отслеживаем добавление закладки
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Analytics' object has no attribute 'track_bookmark_added'
+2026-05-18 22:09:37 | ERROR    | src.core.database | add_bookmark:355 | Ошибка добавления закладки в базу данных: 'Analytics' object has no attribute 'track_bookmark_added'
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 352, in add_bookmark
+    self.analytics.track_bookmark_added(bookmark) # Отслеживаем добавление закладки
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Analytics' object has no attribute 'track_bookmark_added'
+2026-05-18 22:09:37 | ERROR    | src.core.database | add_bookmark:355 | Ошибка добавления закладки в базу данных: 'Analytics' object has no attribute 'track_bookmark_added'
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 352, in add_bookmark
+    self.analytics.track_bookmark_added(bookmark) # Отслеживаем добавление закладки
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Analytics' object has no attribute 'track_bookmark_added'
+2026-05-18 22:09:37 | ERROR    | src.core.database | add_bookmark:355 | Ошибка добавления закладки в базу данных: 'Analytics' object has no attribute 'track_bookmark_added'
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 352, in add_bookmark
+    self.analytics.track_bookmark_added(bookmark) # Отслеживаем добавление закладки
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Analytics' object has no attribute 'track_bookmark_added'
+2026-05-24 06:40:30 | ERROR    | src.core.database | update_book:193 | Ошибка обновления книги в базе данных: 'Analytics' object has no attribute 'track_book_updated'
+Traceback (most recent call last):
+  File "D:\projects\NurBooks_desktop\src\core\database.py", line 190, in update_book
+    self.analytics.track_book_updated(book) # Отслеживаем обновление книги
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Analytics' object has no attribute 'track_book_updated'
+2026-05-25 20:00:18 | WARNING  | src.core.database | update_book:173 | PDF 'https://github.com/salihhhh014/NurBooks-data/releases/download/BOOKS/Post-fervy-ibn-abbasa-1.pdf' уже привязан к другой книге (ID: 8)
+2026-06-03 10:21:51 | ERROR    | src.core.database | add_bookmark:355 | Ошибка добавления закладки в базу данных: 'Analytics' object has no attribute 'track_bookmark_added'
+Traceback (most recent call last):
+  File "d:\projects\NurBooks_desktop\src\core\database.py", line 352, in add_bookmark
+    self.analytics.track_bookmark_added(bookmark) # Отслеживаем добавление закладки
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Analytics' object has no attribute 'track_bookmark_added'

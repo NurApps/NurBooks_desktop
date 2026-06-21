@@ -1,0 +1,463 @@
+import flet as ft
+import os
+from typing import Optional
+from src.core.storage import Storage
+from src.core.models import UserSettings
+from src.core.notifications import NotificationManager
+from src.config import APP_VERSION
+
+
+class SettingsPage:
+    def __init__(
+        self, page: ft.Page, notification_manager: Optional[NotificationManager] = None
+    ):
+        self.page = page
+        self.notification_manager = notification_manager
+        self.storage = Storage()
+        self.settings = self.storage.load_settings()
+
+        # Создаем элементы интерфейса
+        self.download_path_field = ft.TextField(
+            label="Путь для скачивания", value=self.settings.default_path, expand=True
+        )
+
+        self.theme_dropdown = ft.Dropdown(
+            label="Тема интерфейса",
+            value=self.settings.theme or "light",
+            options=[
+                ft.dropdown.Option("light", "Светлая"),
+                ft.dropdown.Option("dark", "Темная"),
+            ],
+            width=200,
+            on_change=self._on_theme_change,
+        )
+
+        self.language_dropdown = ft.Dropdown(
+            label="Язык интерфейса",
+            value=self.settings.language or "ru",
+            options=[
+                ft.dropdown.Option("ru", "Русский"),
+            ],
+            width=200,
+        )
+
+        self.pdf_reader_dropdown = ft.Dropdown(
+            label="PDF-читалка по умолчанию",
+            value=getattr(self.settings, "pdf_reader", "ask") or "ask",
+            options=[
+                ft.dropdown.Option("ask", "Спрашивать каждый раз"),
+                ft.dropdown.Option("builtin", "Встроенная читалка"),
+                ft.dropdown.Option("system", "Системная программа"),
+            ],
+            width=250,
+            hint_text="Как открывать PDF книги",
+        )
+
+
+
+        # Переключатели уведомлений
+        self.download_notifications_switch = ft.Switch(
+            label="Показывать уведомления о скачивании",
+            value=getattr(self.settings, "download_notifications", True)
+        )
+        self.sound_notifications_switch = ft.Switch(
+            label="Звуковые уведомления",
+            value=getattr(self.settings, "sound_notifications", True)
+        )
+        self.update_notifications_switch = ft.Switch(
+            label="Уведомления об обновлениях",
+            value=getattr(self.settings, "update_notifications", True)
+        )
+        self.background_notifications_switch = ft.Switch(
+            label="Фоновые уведомления",
+            value=getattr(self.settings, "background_notifications", True)
+        )
+
+        # Элементы для настроек облака Firebase
+        self.cloudflare_api_token_field = ft.TextField(
+            label="Cloudflare API Token",
+            value=getattr(self.settings, "cloudflare_api_token", ""),
+            password=True,
+            can_reveal_password=True,
+        )
+
+        # Создаем основное содержимое
+        self.content = ft.Container(
+            content=ft.Column(
+                [
+
+                    # Основные настройки
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    "Основные настройки",
+                                    size=20,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Divider(),
+                                # Путь для скачивания
+                                ft.Row(
+                                    [
+                                        self.download_path_field,
+                                        ft.IconButton(
+                                            icon=ft.icons.FOLDER_OPEN,
+                                            tooltip="Выбрать папку",
+                                            on_click=self._on_select_folder,
+                                        ),
+                                    ]
+                                ),
+                                # Тема и язык
+                                ft.Row(
+                                    [
+                                        self.theme_dropdown,
+                                        self.language_dropdown,
+                                    ],
+                                    spacing=20,
+                                ),
+                            ],
+                            spacing=15,
+                        ),
+                        padding=20,
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        border_radius=10,
+                        margin=ft.margin.symmetric(horizontal=20, vertical=10),
+                    ),
+                    # Настройки чтения
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    "Настройки чтения",
+                                    size=20,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Divider(),
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.icons.MENU_BOOK, size=20),
+                                        self.pdf_reader_dropdown,
+                                    ],
+                                    spacing=10,
+                                ),
+                                ft.Text(
+                                    "Встроенная читалка NurBooks позволяет читать книги прямо в приложении по старой схеме : скачал и читаешь.",
+                                    size=12,
+                                    color=ft.colors.GREY_700,
+                                ),
+                            ],
+                            spacing=10,
+                        ),
+                        padding=20,
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        border_radius=10,
+                        margin=ft.margin.symmetric(horizontal=20, vertical=10),
+                    ),
+                    # Настройки уведомлений
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    "Уведомления", size=20, weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Divider(),
+                                self.download_notifications_switch,
+                                self.sound_notifications_switch,
+                                self.update_notifications_switch,
+                                self.background_notifications_switch,
+                            ],
+                            spacing=10,
+                        ),
+                        padding=20,
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        border_radius=10,
+                        margin=ft.margin.symmetric(horizontal=20, vertical=10),
+                    ),
+                    # Кэш и данные
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    "Данные и кэш", size=20, weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Divider(),
+                                ft.Row(
+                                    [
+                                        ft.Text("Размер кэша обложек:"),
+                                        ft.Text("5.2 MB", weight=ft.FontWeight.BOLD),
+                                        ft.Container(expand=True),
+                                        ft.TextButton(
+                                            "Очистить кэш",
+                                            on_click=self._on_clear_cache,
+                                        ),
+                                    ]
+                                ),
+                                ft.Row(
+                                    [
+                                        ft.Text("Размер скачанных книг:"),
+                                        ft.Text(
+                                            self._get_downloaded_size(),
+                                            weight=ft.FontWeight.BOLD,
+                                        ),
+                                        ft.Container(expand=True),
+                                        ft.TextButton(
+                                            "Показать папку",
+                                            on_click=self._on_show_folder,
+                                        ),
+                                    ]
+                                ),
+                            ],
+                            spacing=10,
+                        ),
+                        padding=20,
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        border_radius=10,
+                        margin=ft.margin.symmetric(horizontal=20, vertical=10),
+                    ),
+                    # Кнопки действий
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.ElevatedButton(
+                                    "Сохранить настройки",
+                                    icon=ft.icons.SAVE,
+                                    on_click=self._on_save_settings,
+                                    style=ft.ButtonStyle(padding=20),
+                                ),
+                                ft.OutlinedButton(
+                                    "Сбросить настройки",
+                                    icon=ft.icons.RESTORE,
+                                    on_click=self._on_reset_settings,
+                                    style=ft.ButtonStyle(padding=20),
+                                ),
+                            ],
+                            spacing=20,
+                        ),
+                        padding=ft.padding.all(20),
+                        alignment=ft.alignment.center,
+                    ),
+                    # Информация о приложении
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    "О приложении", size=20, weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Divider(),
+                                ft.Text(f"Версия: {APP_VERSION}", size=12),
+                            ]
+                        ),
+                        padding=20,
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        border_radius=10,
+                        margin=ft.margin.symmetric(horizontal=20, vertical=10),
+                    ),
+                ],
+                scroll=ft.ScrollMode.AUTO,
+            ),
+            expand=True,
+        )
+
+    def _get_downloaded_size(self) -> str:
+        """Получает размер скачанных файлов"""
+        try:
+            total_size = 0
+            for dirpath, dirnames, filenames in os.walk("downloads"):
+                for filename in filenames:
+                    filepath = os.path.join(dirpath, filename)
+                    total_size += os.path.getsize(filepath)
+
+            if total_size < 1024:
+                return f"{total_size} B"
+            elif total_size < 1024 * 1024:
+                return f"{total_size / 1024:.1f} KB"
+            else:
+                return f"{total_size / (1024 * 1024):.1f} MB"
+        except Exception:
+            return "Неизвестно"
+
+    def _on_theme_change(self, e):
+        """Обработчик изменения темы"""
+        theme = self.theme_dropdown.value or "light"
+
+        # Применяем тему немедленно
+        if theme == "dark":
+            self.page.theme_mode = ft.ThemeMode.DARK
+        else:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+            self.page.update()
+
+    def _on_select_folder(self, e):
+        """Обработчик выбора папки"""
+        def on_folder_selected(e: ft.FilePickerResultEvent):
+            if e.path:
+                self.download_path_field.value = e.path
+                self.page.update()
+
+        file_picker = ft.FilePicker(on_result=on_folder_selected)
+        self.page.overlay.append(file_picker)
+        self.page.update()
+        file_picker.get_directory_path()
+
+    def _on_clear_cache(self, e):
+        """Обработчик очистки кэша"""
+        dlg = ft.AlertDialog(
+            title=ft.Text("Очистка кэша"),
+            content=ft.Text("Вы уверены, что хотите очистить кэш обложек?"),
+            actions=[
+                ft.TextButton(
+                    "Отмена",
+                    on_click=lambda _: self.page.close(),
+                ),
+                ft.TextButton("Очистить", on_click=lambda e: self._confirm_clear_cache(e, dlg)),
+            ],
+        )
+        self.page.open(dlg)
+
+    def _confirm_clear_cache(self, e, dlg):
+        """Подтверждение очистки кэша"""
+        try:
+            # Очищаем папку с миниатюрами
+            import shutil
+
+            if os.path.exists("data/thumbnails"):
+                shutil.rmtree("data/thumbnails")
+                os.makedirs("data/thumbnails")
+
+            self.page.close()
+
+            if self.notification_manager:
+                self.notification_manager.add_notification(
+                    title="Кэш очищен",
+                    message="Кэш обложек успешно очищен",
+                    type="success",
+                )
+        except Exception as ex:
+            if self.notification_manager:
+                self.notification_manager.add_notification(
+                    title="Ошибка",
+                    message=f"Не удалось очистить кэш: {ex}",
+                    type="error",
+                )
+
+    def _on_show_folder(self, e):
+        """Показать папку со скачанными файлами"""
+        try:
+            os.startfile("downloads") if os.name == "nt" else os.system(
+                'xdg-open "downloads"'
+            )
+        except Exception:
+            pass
+
+    def _on_save_settings(self, e):
+        """Сохранить настройки"""
+        try:
+            self.settings.default_path = self.download_path_field.value or "downloads"
+            # Проверяем, что значение не None, иначе используем значение по умолчанию
+            self.settings.theme = self.theme_dropdown.value or "light"
+            self.settings.language = self.language_dropdown.value or "ru"
+            self.settings.pdf_reader = self.pdf_reader_dropdown.value or "ask"
+            self.settings.email_client = self.email_client_dropdown.value or "smtp"
+            # Сохраняем настройки уведомлений
+            self.settings.download_notifications = self.download_notifications_switch.value
+            self.settings.sound_notifications = self.sound_notifications_switch.value if self.sound_notifications_switch.value is not None else False
+            self.settings.update_notifications = self.update_notifications_switch.value
+            self.settings.background_notifications = self.background_notifications_switch.value if self.background_notifications_switch.value is not None else True
+
+            self.storage.save_settings(self.settings)
+            if self.notification_manager and hasattr(self.notification_manager, "set_sound_enabled"):
+                self.notification_manager.set_sound_enabled(bool(self.settings.sound_notifications))
+            if self.notification_manager and hasattr(self.notification_manager, "set_enabled"):
+                self.notification_manager.set_enabled(bool(self.settings.background_notifications))
+
+            # Применяем тему
+            if self.settings.theme == "dark":
+                self.page.theme_mode = ft.ThemeMode.DARK
+            else:
+                self.page.theme_mode = ft.ThemeMode.LIGHT
+
+            if self.notification_manager:
+                self.notification_manager.add_notification(
+                    title="Настройки сохранены",
+                    message="Настройки успешно сохранены",
+                    type="success",
+                )
+
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text("Настройки успешно сохранены!"), action="OK"
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
+        except Exception as ex:
+            if self.notification_manager:
+                self.notification_manager.add_notification(
+                    title="Ошибка",
+                    message=f"Не удалось сохранить настройки: {ex}",
+                    type="error",
+                )
+
+    def _on_reset_settings(self, e):
+        """Сбросить настройки"""
+        dlg = ft.AlertDialog(
+            title=ft.Text("Сброс настроек"),
+            content=ft.Text(
+                "Вы уверены, что хотите сбросить все настройки к значениям по умолчанию?"
+            ),
+            actions=[
+                ft.TextButton(
+                    "Отмена",
+                    on_click=lambda _: self.page.close(),
+                ),
+                ft.TextButton("Сбросить", on_click=lambda e: self._confirm_reset_settings(e, dlg)),
+            ],
+        )
+        self.page.open(dlg)
+
+    def _confirm_reset_settings(self, e, dlg):
+        """Подтверждение сброса настроек"""
+        try:
+            from src.config import DEFAULT_DOWNLOAD_PATH
+
+            self.settings = UserSettings(default_path=DEFAULT_DOWNLOAD_PATH)
+            self.storage.save_settings(self.settings)
+
+            # Обновляем поля
+            self.download_path_field.value = self.settings.default_path
+            self.theme_dropdown.value = self.settings.theme or "light"
+            self.language_dropdown.value = self.settings.language or "ru"
+            self.pdf_reader_dropdown.value = self.settings.pdf_reader or "ask"
+            self.email_client_dropdown.value = self.settings.email_client or "smtp"
+            self.download_notifications_switch.value = self.settings.download_notifications
+            self.sound_notifications_switch.value = self.settings.sound_notifications
+            self.update_notifications_switch.value = self.settings.update_notifications
+            self.background_notifications_switch.value = self.settings.background_notifications
+
+
+            # Применяем тему по умолчанию (светлая)
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+
+            self.page.close()
+
+            if self.notification_manager:
+                self.notification_manager.add_notification(
+                    title="Настройки сброшены",
+                    message="Настройки сброшены к значениям по умолчанию",
+                    type="info",
+                )
+
+        except Exception as ex:
+            if self.notification_manager:
+                self.notification_manager.add_notification(
+                    title="Ошибка",
+                    message=f"Не удалось сбросить настройки: {ex}",
+                    type="error",
+                )
+
+    def _close_dialog(self, e=None):
+        """Закрыть диалог"""
+        self.page.close()
+
+    def build(self) -> ft.Control:
+        """Возвращает содержимое страницы"""
+        return self.content
