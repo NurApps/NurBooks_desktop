@@ -32,7 +32,7 @@ jobs:
         flet pack main.py --name "NurBooks Desktop" --icon "assets/logo.ico"
 
     - name: Upload Build Artifact
-      uses: actions/artifacts@v4
+      uses: actions/upload-artifact@v4
       with:
         name: NurBooks-Desktop-Windows
         path: dist/
