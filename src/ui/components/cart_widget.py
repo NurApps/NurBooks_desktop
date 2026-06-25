@@ -65,12 +65,22 @@ class CartWidget:
                     on_change=lambda e, bid=book.id: self._on_item_select(bid, e.control.value)
                 ),
                 
+                # Иконка
+                ft.Container(
+                    content=ft.Icon(ft.icons.PICTURE_AS_PDF, color=ft.colors.RED, size=22),
+                    bgcolor=ft.colors.RED_50,
+                    border_radius=20,
+                    width=40,
+                    height=40,
+                    alignment=ft.alignment.center,
+                ),
+                
                 # Информация о книге
                 ft.Column([
-                    ft.Text(book.title, size=12, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Автор: {book.author}", size=10),
-                    ft.Text(f"Категория: {book.category}", size=10, color=ft.colors.GREY),
-                ], expand=True, spacing=0),
+                    ft.Text(book.title, size=13, weight=ft.FontWeight.BOLD),
+                    ft.Text(f"Автор: {book.author}", size=11, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text(f"Категория: {book.category}", size=10, color=ft.colors.OUTLINE),
+                ], expand=True, spacing=1),
                 
                 # Кнопка удаления
                 ft.IconButton(
@@ -79,11 +89,12 @@ class CartWidget:
                     tooltip="Удалить",
                     on_click=lambda e, bid=book.id: self._on_remove_item(bid)
                 ),
-            ]),
-            padding=10,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            border_radius=8,
-            margin=ft.margin.only(bottom=5)
+            ], spacing=12),
+            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=ft.colors.SURFACE,
+            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border_radius=12,
+            margin=ft.margin.only(bottom=8)
         )
     
     def _create_content(self) -> ft.Control:
@@ -93,19 +104,23 @@ class CartWidget:
                 # Заголовок
                 ft.Container(
                     content=ft.Row([
-                        ft.Icon(ft.icons.SHOPPING_CART, size=24),
-                        ft.Text("Корзина для скачивания", size=18, weight=ft.FontWeight.BOLD),
-                        ft.Container(expand=True),
                         ft.IconButton(
                             icon=ft.icons.CLOSE,
                             icon_size=20,
                             tooltip="Скрыть корзину",
                             on_click=lambda e: self.on_close() if self.on_close else None
                         ),
+                        ft.Icon(ft.icons.SHOPPING_CART, size=20, color=ft.colors.PRIMARY),
+                        ft.Text("Корзина для скачивания", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Container(expand=True),
+                        ft.TextButton(
+                            "Очистить",
+                            icon=ft.icons.DELETE,
+                            on_click=self._on_clear_cart
+                        ),
                     ]),
-                    padding=10,
-                    bgcolor=ft.colors.PRIMARY_CONTAINER,
-                    border_radius=ft.border_radius.only(top_left=10, top_right=10)
+                    padding=ft.padding.symmetric(horizontal=5, vertical=10),
+                    bgcolor=ft.colors.SURFACE_VARIANT,
                 ),
                 
                 ft.Divider(height=1),
@@ -120,18 +135,14 @@ class CartWidget:
                     expand=True
                 ),
                 
-                ft.Divider(height=1),
-                
-                # Кнопки действий
+                # Кнопка скачивания
                 ft.Container(
                     content=ft.Column([
                         ft.Row([
                             self.download_button,
-                            ft.Container(expand=True),
-                            self.clear_button,
-                        ]),
+                        ], alignment=ft.MainAxisAlignment.CENTER),
                     ]),
-                    padding=10
+                    padding=ft.padding.symmetric(horizontal=10, vertical=8)
                 ),
             ]),
             width=350,

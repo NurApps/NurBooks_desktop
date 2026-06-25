@@ -56,10 +56,8 @@ class NurBooksApp:
         # Инициализация менеджеров
         self.notification_manager = NotificationManager()
         self.storage = Storage()
-        self.downloader = Downloader(database=self.storage.database)
-        
-        # Загрузка настроек
         self.settings = self.storage.load_settings()
+        self.downloader = Downloader(download_path=self.settings.default_path, database=self.storage.database)
         self.notification_manager.set_sound_enabled(getattr(self.settings, "sound_notifications", True))
         self.notification_manager.set_enabled(getattr(self.settings, "background_notifications", True))
         if self.settings.theme == "dark":
@@ -540,19 +538,13 @@ class NurBooksApp:
             self.page.update()
 
     def _show_book_proposal_form(self, update_ui: bool = True):
-        """Открывает Telegram бота для предложения книги"""
-        import webbrowser
-        
-        # Открываем бота
-        webbrowser.open("https://t.me/nurbooks_official_bot")
-        
-        # Показываем уведомление
-        self.notification_manager.add_notification(
-            title="Открыт бот",
-            message="В боте вам будут заданы вопросы для предложения книги. Формы больше нет — всё упрощено!",
-            type="success"
+        """Показывает страницу с инструкцией как предложить книгу"""
+        proposal_page = BookProposalPage(
+            page=self.page,
+            on_back=lambda: self._show_catalog_page()
         )
-        
+        self.main_content.content = proposal_page.build()
+        self.current_page = "proposal"
         if update_ui:
             self.page.update()
     

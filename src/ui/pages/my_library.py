@@ -13,9 +13,9 @@ class MyLibraryPage:
     def __init__(self, page: ft.Page, notification_manager: NotificationManager = None, on_read_book=None):
         self.page = page
         self.notification_manager = notification_manager
-        self.downloader = Downloader()
         self.storage = Storage()
         self.settings = self.storage.load_settings()
+        self.downloader = Downloader(download_path=self.settings.default_path)
         self.on_read_book = on_read_book  # Callback для открытия встроенной читалки
         
         self.downloaded_books: List[str] = []
@@ -67,14 +67,24 @@ class MyLibraryPage:
         except Exception as e:
             print(f"Ошибка сохранения избранного: {e}")
     
-    def _create_downloaded_book_item(self, filename: str) -> ft.Control:
+    def _create_downloaded_book_item(self, book: Book, filename: str) -> ft.Control:
         """Создает элемент для скачанной книги"""
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.PICTURE_AS_PDF, color=ft.colors.RED),
+                ft.Container(
+                    content=ft.Icon(ft.icons.PICTURE_AS_PDF, color=ft.colors.RED, size=22),
+                    bgcolor=ft.colors.RED_50,
+                    border_radius=20,
+                    width=40,
+                    height=40,
+                    alignment=ft.alignment.center,
+                ),
                 ft.Column([
-                    ft.Text(filename, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Размер: {self._get_file_size(filename)}", size=12, color=ft.colors.GREY),
+                    ft.Text(book.title if book.id > 0 else filename, weight=ft.FontWeight.BOLD, size=14),
+                    ft.Text(
+                        f"{book.author if book.id > 0 else 'Неизвестно'}  •  {self._get_file_size(filename)}",
+                        size=12, color=ft.colors.ON_SURFACE_VARIANT
+                    ),
                 ], expand=True, spacing=2),
                 ft.PopupMenuButton(
                     icon=ft.icons.MORE_VERT,
@@ -86,6 +96,13 @@ class MyLibraryPage:
                                 ft.Text("Открыть/Читать")
                             ]),
                             on_click=lambda e: self._open_or_read_book(filename)
+                        ),
+                        ft.PopupMenuItem(
+                            content=ft.Row([
+                                ft.Icon(ft.icons.INFO, size=20),
+                                ft.Text("Информация о книге")
+                            ]),
+                            on_click=lambda e, b=book: self._show_book_info(b) if b.id > 0 else None
                         ),
                         ft.PopupMenuItem(
                             content=ft.Row([
@@ -103,11 +120,12 @@ class MyLibraryPage:
                         ),
                     ]
                 ),
-            ]),
-            padding=10,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            border_radius=8,
-            margin=ft.margin.only(bottom=5)
+            ], spacing=12),
+            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=ft.colors.SURFACE,
+            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border_radius=12,
+            margin=ft.margin.only(bottom=8)
         )
     
     def _get_file_size(self, filename: str) -> str:
@@ -122,34 +140,103 @@ class MyLibraryPage:
                 return f"{size/(1024*1024):.1f} MB"
         except OSError:
             return "Неизвестно"
+
+    def _find_book_by_filename(self, filename: str, books: list = None) -> Book:
+        """Находит книгу по имени файла"""
+        if books is None:
+            books = self.storage.load_books()
+        book_id_str = filename.split("_")[0]
+        for book in books:
+            if str(book.id) == book_id_str:
+                return book
+            if book.title and book.title[:30].replace(" ", "_") in filename:
+                return book
+        return Book(id=0, title=filename.replace(".pdf", ""), author="Неизвестно",
+                     category="", year=0, description="", cover="", pdf="")
+
+    def _show_book_info(self, book: Book):
+        """Показывает информацию о книге"""
+        from src.core.storage import Storage
+        dlg = ft.AlertDialog(
+            title=ft.Text(book.title, text_align=ft.TextAlign.CENTER),
+            content=ft.Column([
+                ft.Image(
+                    src=book.cover if book.cover and book.cover.startswith(("http://", "https://")) else "assets/logo.png",
+                    width=100, height=150, fit=ft.ImageFit.COVER, border_radius=5,
+                ) if book.cover else ft.Container(height=10),
+                ft.Text(f"Автор: {book.author}", text_align=ft.TextAlign.CENTER),
+                ft.Text(f"Категория: {book.category}", text_align=ft.TextAlign.CENTER),
+                ft.Text(f"Год: {book.year}", text_align=ft.TextAlign.CENTER) if book.year else ft.Container(),
+                ft.Divider(),
+                ft.Text(book.description, text_align=ft.TextAlign.JUSTIFY, size=13) if book.description else ft.Container(),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8, tight=True),
+            actions=[ft.TextButton("Закрыть", on_click=lambda _: self.page.close(dlg))],
+            actions_alignment=ft.MainAxisAlignment.CENTER,
+        )
+        self.page.open(dlg)
+        self.page.update()
     
-    def _create_saved_book_item(self, book_id: str) -> ft.Control:
-        """Создает элемент для сохраненной книги"""
-        books = self.storage.load_books()
-        book = next((b for b in books if str(b.id) == book_id), None)
-        
-        if not book:
-            return ft.Container()
-        
+    def _create_my_book_item(self, book: Book) -> ft.Control:
+        """Создает элемент для сохраненной книги (с кнопкой скачать)"""
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.BOOKMARK, color=ft.colors.BLUE),
+                ft.Container(
+                    content=ft.Icon(ft.icons.BOOKMARK, color=ft.colors.BLUE, size=22),
+                    bgcolor=ft.colors.BLUE_50,
+                    border_radius=20,
+                    width=40,
+                    height=40,
+                    alignment=ft.alignment.center,
+                ),
                 ft.Column([
-                    ft.Text(book.title, weight=ft.FontWeight.BOLD),
+                    ft.Text(book.title, weight=ft.FontWeight.BOLD, size=14),
                     ft.Text(f"Автор: {book.author}", size=12, color=ft.colors.GREY),
                 ], expand=True, spacing=2),
+                ft.ElevatedButton(
+                    "Скачать",
+                    icon=ft.icons.DOWNLOAD,
+                    on_click=lambda e, b=book: self._download_saved_book(b),
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.colors.PRIMARY_CONTAINER,
+                    )
+                ),
                 ft.IconButton(
                     icon=ft.icons.DELETE,
                     tooltip="Удалить из библиотеки",
-                    on_click=lambda e, bid=book_id: self._on_delete_saved_click(bid)
+                    on_click=lambda e, bid=str(book.id): self._on_delete_saved_click(bid)
                 ),
             ]),
-            padding=10,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            border_radius=8,
-            margin=ft.margin.only(bottom=5)
+            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=ft.colors.SURFACE,
+            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border_radius=12,
+            margin=ft.margin.only(bottom=8)
         )
-    
+
+    def _download_saved_book(self, book: Book):
+        """Скачивает сохраненную книгу"""
+        def download():
+            try:
+                self.downloader.download_book(book)
+                self.downloaded_books = self.downloader.get_downloaded_books()
+                self.content = self._create_content()
+                self.page.update()
+                if self.notification_manager:
+                    self.notification_manager.add_notification(
+                        title="Книга скачана",
+                        message=f"Книга '{book.title}' успешно скачана",
+                        type="success"
+                    )
+            except Exception as ex:
+                if self.notification_manager:
+                    self.notification_manager.add_notification(
+                        title="Ошибка скачивания",
+                        message=f"Не удалось скачать '{book.title}': {ex}",
+                        type="error"
+                    )
+        import threading
+        threading.Thread(target=download, daemon=True).start()
+
     def _create_favorite_book_item(self, book_id: str) -> ft.Control:
         """Создает элемент для избранной книги"""
         books = self.storage.load_books()
@@ -160,21 +247,29 @@ class MyLibraryPage:
         
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.FAVORITE, color=ft.colors.RED),
+                ft.Container(
+                    content=ft.Icon(ft.icons.FAVORITE, color=ft.colors.RED, size=22),
+                    bgcolor=ft.colors.RED_50,
+                    border_radius=20,
+                    width=40,
+                    height=40,
+                    alignment=ft.alignment.center,
+                ),
                 ft.Column([
-                    ft.Text(book.title, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Автор: {book.author}", size=12, color=ft.colors.GREY),
+                    ft.Text(book.title, weight=ft.FontWeight.BOLD, size=14),
+                    ft.Text(f"Автор: {book.author}", size=12, color=ft.colors.ON_SURFACE_VARIANT),
                 ], expand=True, spacing=2),
                 ft.IconButton(
                     icon=ft.icons.DELETE,
                     tooltip="Удалить из избранного",
                     on_click=lambda e, bid=book_id: self._on_delete_favorite_click(bid)
                 ),
-            ]),
-            padding=10,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            border_radius=8,
-            margin=ft.margin.only(bottom=5)
+            ], spacing=12),
+            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=ft.colors.SURFACE,
+            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border_radius=12,
+            margin=ft.margin.only(bottom=8)
         )
     
     def _create_bookmark_item(self, bookmark_data: tuple) -> ft.Control:
@@ -190,13 +285,20 @@ class MyLibraryPage:
         
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.BOOKMARK, color=ft.colors.AMBER),
+                ft.Container(
+                    content=ft.Icon(ft.icons.BOOKMARK, color=ft.colors.AMBER, size=22),
+                    bgcolor=ft.colors.AMBER_50,
+                    border_radius=20,
+                    width=40,
+                    height=40,
+                    alignment=ft.alignment.center,
+                ),
                 ft.Column([
-                    ft.Text(book.title, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Автор: {book.author}", size=12, color=ft.colors.GREY),
+                    ft.Text(book.title, weight=ft.FontWeight.BOLD, size=14),
+                    ft.Text(f"Автор: {book.author}", size=12, color=ft.colors.ON_SURFACE_VARIANT),
                     ft.Text(f"Страница {bookmark.page_number}", size=12, color=ft.colors.BLUE),
-                    ft.Text(f"Добавлено: {format_date(bookmark.timestamp)}", size=11, color=ft.colors.GREY),
-                ], expand=True, spacing=2),
+                    ft.Text(f"Добавлено: {format_date(bookmark.timestamp)}", size=11, color=ft.colors.OUTLINE),
+                ], expand=True, spacing=1),
                 ft.IconButton(
                     icon=ft.icons.OPEN_IN_NEW,
                     tooltip="Перейти к странице",
@@ -208,11 +310,12 @@ class MyLibraryPage:
                     icon_color=ft.colors.RED,
                     on_click=lambda e, bid=bookmark.id: self._delete_bookmark(bid)
                 ),
-            ]),
-            padding=10,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            border_radius=8,
-            margin=ft.margin.only(bottom=5)
+            ], spacing=12),
+            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=ft.colors.SURFACE,
+            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border_radius=12,
+            margin=ft.margin.only(bottom=8)
         )
     
     def _create_content(self) -> ft.Control:
@@ -231,12 +334,8 @@ class MyLibraryPage:
                     animation_duration=300,
                     tabs=[
                         ft.Tab(
-                            text="Скачанные книги",
-                            content=self._create_downloaded_tab()
-                        ),
-                        ft.Tab(
-                            text="Сохраненные книги",
-                            content=self._create_saved_tab()
+                            text="Мои книги",
+                            content=self._create_my_books_tab()
                         ),
                         ft.Tab(
                             text="Избранные книги",
@@ -253,62 +352,40 @@ class MyLibraryPage:
             expand=True
         )
     
-    def _create_downloaded_tab(self) -> ft.Control:
-        """Создает вкладку со скачанными книгами"""
-        if not self.downloaded_books:
+    def _create_my_books_tab(self) -> ft.Control:
+        """Создает вкладку Мои книги (скачанные + сохраненные)"""
+        book_items = []
+
+        # Сначала скачанные книги
+        all_books = self.storage.load_books()
+        for filename in self.downloaded_books:
+            book = self._find_book_by_filename(filename, all_books)
+            book_items.append(self._create_downloaded_book_item(book, filename))
+
+        # Затем сохраненные книги, которых нет среди скачанных
+        for book_id in self.saved_books:
+            book = next((b for b in all_books if str(b.id) == book_id), None)
+            if not book:
+                continue
+            is_downloaded, _ = self.downloader.is_book_downloaded(book)
+            if not is_downloaded:
+                book_items.append(self._create_my_book_item(book))
+
+        if not book_items:
             return ft.Container(
                 content=ft.Column([
                     ft.Icon(ft.icons.FOLDER_OPEN, size=48, color=ft.colors.GREY),
-                    ft.Text("Нет скачанных книг", size=16, color=ft.colors.GREY),
-                    ft.Text("Скачанные книги появятся здесь", size=12, color=ft.colors.GREY_600),
+                    ft.Text("Нет книг", size=16, color=ft.colors.GREY),
+                    ft.Text("Скачайте или сохраните книги из каталога", size=12, color=ft.colors.GREY_600),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=20,
                 alignment=ft.alignment.center
             )
-        
-        book_items = []
-        for filename in self.downloaded_books:
-            book_items.append(self._create_downloaded_book_item(filename))
-        
+
         return ft.Container(
             content=ft.Column([
                 ft.Text(
-                    f"Скачанных книг: {len(self.downloaded_books)}",
-                    size=14,
-                    color=ft.colors.GREY
-                ),
-                ft.Container(
-                    content=ft.Column(book_items, scroll=ft.ScrollMode.ADAPTIVE),
-                    padding=10,
-                    expand=True
-                ),
-            ]),
-            padding=20,
-            expand=True
-        )
-    
-    def _create_saved_tab(self) -> ft.Control:
-        """Создает вкладку с сохраненными книгами"""
-        if not self.saved_books:
-            return ft.Container(
-                content=ft.Column([
-                    ft.Icon(ft.icons.BOOKMARK_BORDER, size=48, color=ft.colors.GREY),
-                    ft.Text("Нет сохраненных книг", size=16, color=ft.colors.GREY),
-                    ft.Text("Добавьте книги в библиотеку из каталога", size=12, color=ft.colors.GREY_600),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                padding=20,
-                alignment=ft.alignment.center
-            )
-        
-        book_items = []
-        for book_id in self.saved_books:
-            item = self._create_saved_book_item(book_id)
-            book_items.append(item)
-        
-        return ft.Container(
-            content=ft.Column([
-                ft.Text(
-                    f"Сохраненных книг: {len(self.saved_books)}",
+                    f"Всего книг: {len(book_items)}",
                     size=14,
                     color=ft.colors.GREY
                 ),

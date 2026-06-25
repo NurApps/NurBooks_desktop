@@ -127,7 +127,6 @@ class PDFReaderPage:
         )
 
         # Навигация
-        self.page_counter = ft.Text("0 / 0", size=14, weight=ft.FontWeight.BOLD)
         self.prev_btn = ft.IconButton(
             icon=ft.icons.ARROW_LEFT,
             on_click=self._prev_page,
@@ -139,6 +138,15 @@ class PDFReaderPage:
             disabled=True,
         )
         self.zoom_label = ft.Text(f"{int(self.zoom * 100)}%")
+        self.page_input = ft.TextField(
+            hint_text="№",
+            width=50,
+            height=35,
+            text_size=13,
+            text_align=ft.TextAlign.CENTER,
+            on_submit=self._jump_to_page,
+        )
+        self.total_pages_text = ft.Text(f"{self.total_pages}", size=14, weight=ft.FontWeight.BOLD)
 
         # Строим UI
         self.content = self._build_ui()
@@ -183,11 +191,20 @@ class PDFReaderPage:
             content=ft.Row([
                 self.prev_btn,
                 ft.Container(expand=True),
-                self.page_counter,
+                self.page_input,
+                ft.Text(" / ", size=14),
+                self.total_pages_text,
+                ft.Container(width=10),
+                ft.IconButton(
+                    icon=ft.icons.SEND,
+                    icon_size=16,
+                    tooltip="Перейти",
+                    on_click=self._jump_to_page,
+                ),
                 ft.Container(expand=True),
                 self.next_btn,
             ], alignment=ft.MainAxisAlignment.CENTER),
-            padding=10,
+            padding=ft.padding.symmetric(horizontal=10, vertical=5),
             bgcolor=ft.colors.SURFACE_VARIANT,
         )
 
@@ -219,6 +236,13 @@ class PDFReaderPage:
         except Exception:
             pass
 
+    def _save_progress(self):
+        """Сохраняет прогресс чтения в БД"""
+        if self.book.id > 0 and self.pdf_doc:
+            from src.core.database import Database
+            db = Database()
+            db.save_reading_progress(self.book.id, self.current_page + 1)
+
     def _show_page_image(self, image_path: str):
         """Показывает изображение страницы - ГЛАВНЫЙ МЕТОД"""
         try:
@@ -238,9 +262,13 @@ class PDFReaderPage:
             self.overlay.visible = False
             
             # Обновляем счётчик
-            self.page_counter.value = f"{self.current_page + 1} / {self.total_pages}"
+            self.total_pages_text.value = str(self.total_pages)
+            self.page_input.value = str(self.current_page + 1)
             self.prev_btn.disabled = self.current_page <= 0
             self.next_btn.disabled = self.current_page >= self.total_pages - 1
+            
+            # Сохраняем прогресс
+            self._save_progress()
             
             # Обновляем страницу
             self.page.update()
@@ -279,8 +307,13 @@ class PDFReaderPage:
             self.total_pages = len(self.pdf_doc)
             print(f"[PDF] Страниц: {self.total_pages}")
 
-            # Определяем начальную страницу
-            start_page = self.go_to_page - 1 if self.go_to_page is not None else 0
+            # Определяем начальную страницу (приоритет: go_to_page > сохраненный прогресс > 0)
+            if self.go_to_page is not None:
+                start_page = self.go_to_page - 1
+            else:
+                from src.core.database import Database
+                saved_page = Database().get_reading_progress(self.book.id)
+                start_page = (saved_page - 1) if saved_page else 0
             start_page = max(0, min(start_page, self.total_pages - 1))
 
             # Рендерим первую страницу и показываем
@@ -468,6 +501,7 @@ class PDFReaderPage:
     def _go_back(self, e):
         """Возврат"""
         self._stop_preload.set()
+        self._save_progress()
         if self.pdf_doc:
             try:
                 self.pdf_doc.close()
@@ -518,6 +552,25 @@ class PDFReaderPage:
         self.page.snack_bar.open = True
         self.page.update()
     
+    def _jump_to_page(self, e):
+        """Переход на указанную страницу"""
+        try:
+            page = int(self.page_input.value)
+            if page < 1 or page > self.total_pages:
+                self.page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"Страницы {page} нет. Введите от 1 до {self.total_pages}"),
+                    bgcolor=ft.colors.ERROR
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+                return
+            self._show_loading(f"Страница {page}...")
+            threading.Thread(target=self._show_page, args=(page - 1,), daemon=True).start()
+            threading.Thread(target=self._preload_pages, daemon=True).start()
+        except ValueError:
+            self.page_input.value = str(self.current_page + 1)
+            self.page.update()
+
     def build(self) -> ft.Control:
         return self.content
 

@@ -126,15 +126,6 @@ class CatalogPage:
         filters_layout = ft.Column(
             controls=[
                 self.filters_panel.build(),
-                ft.Container(
-                    content=ft.ElevatedButton(
-                        "Применить",
-                        icon=ft.icons.FILTER_ALT_OUTLINED,
-                        on_click=self._apply_filters_and_search,
-                        expand=True,
-                    ),
-                    margin=ft.margin.only(top=15),
-                ),
             ]
         )
 

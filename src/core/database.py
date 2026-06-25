@@ -70,6 +70,16 @@ class Database:
             )
         ''')
         
+        # Создаем таблицу для прогресса чтения
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reading_progress (
+                book_id INTEGER PRIMARY KEY,
+                page_number INTEGER NOT NULL DEFAULT 0,
+                timestamp TEXT NOT NULL,
+                FOREIGN KEY (book_id) REFERENCES books (id)
+            )
+        ''')
+        
         conn.commit()
         conn.close()
 
@@ -349,7 +359,10 @@ class Database:
             bookmark.id = cursor.lastrowid
             conn.close()
             if affected:
-                self.analytics.track_bookmark_added(bookmark) # Отслеживаем добавление закладки
+                try:
+                    self.analytics.track_bookmark_added(bookmark)
+                except Exception:
+                    pass
             return affected
         except Exception as e:
             logger.error(f"Ошибка добавления закладки в базу данных: {e}", exc_info=True)
@@ -460,6 +473,41 @@ class Database:
             logger.error(f"Ошибка получения закладок с книгами: {e}", exc_info=True)
             conn.close()
             return []
+
+    def save_reading_progress(self, book_id: int, page_number: int) -> bool:
+        """Сохраняет прогресс чтения (последнюю страницу)"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            from datetime import datetime
+            cursor.execute('''
+                INSERT OR REPLACE INTO reading_progress (book_id, page_number, timestamp)
+                VALUES (?, ?, ?)
+            ''', (book_id, page_number, datetime.now().isoformat()))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка сохранения прогресса чтения: {e}", exc_info=True)
+            conn.close()
+            return False
+
+    def get_reading_progress(self, book_id: int) -> Optional[int]:
+        """Возвращает номер последней прочитанной страницы или None"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT page_number FROM reading_progress WHERE book_id=?",
+                (book_id,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return row[0] if row else None
+        except Exception as e:
+            logger.error(f"Ошибка получения прогресса чтения: {e}", exc_info=True)
+            conn.close()
+            return None
 
     def get_all_books(self) -> List[Book]:
         """Получает все книги из базы данных"""
