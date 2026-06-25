@@ -4,7 +4,7 @@ from typing import Optional
 from src.core.storage import Storage
 from src.core.models import UserSettings
 from src.core.notifications import NotificationManager
-from src.config import APP_VERSION
+from src.config import APP_VERSION, NURBOOKS_DOWNLOADS_PATH
 
 
 class SettingsPage:
@@ -285,7 +285,7 @@ class SettingsPage:
             self.page.theme_mode = ft.ThemeMode.DARK
         else:
             self.page.theme_mode = ft.ThemeMode.LIGHT
-            self.page.update()
+        self.page.update()
 
     def _on_select_folder(self, e):
         """Обработчик выбора папки"""
@@ -343,8 +343,9 @@ class SettingsPage:
     def _on_show_folder(self, e):
         """Показать папку со скачанными файлами"""
         try:
-            os.startfile("downloads") if os.name == "nt" else os.system(
-                'xdg-open "downloads"'
+            download_path = self.settings.default_path
+            os.startfile(download_path) if os.name == "nt" else os.system(
+                f'xdg-open "{download_path}"'
             )
         except Exception:
             pass
@@ -352,7 +353,12 @@ class SettingsPage:
     def _on_save_settings(self, e):
         """Сохранить настройки"""
         try:
-            self.settings.default_path = self.download_path_field.value or "downloads"
+            path_value = self.download_path_field.value or "downloads"
+            # Нормализуем путь: если это дефолтная папка, сохраняем как "downloads"
+            if path_value == NURBOOKS_DOWNLOADS_PATH:
+                self.settings.default_path = "downloads"
+            else:
+                self.settings.default_path = path_value
             # Проверяем, что значение не None, иначе используем значение по умолчанию
             self.settings.theme = self.theme_dropdown.value or "light"
             self.settings.language = self.language_dropdown.value or "ru"
@@ -375,6 +381,7 @@ class SettingsPage:
                 self.page.theme_mode = ft.ThemeMode.DARK
             else:
                 self.page.theme_mode = ft.ThemeMode.LIGHT
+            self.page.update()
 
             if self.notification_manager:
                 self.notification_manager.add_notification(
@@ -417,13 +424,11 @@ class SettingsPage:
     def _confirm_reset_settings(self, e, dlg):
         """Подтверждение сброса настроек"""
         try:
-            from src.config import DEFAULT_DOWNLOAD_PATH
-
-            self.settings = UserSettings(default_path=DEFAULT_DOWNLOAD_PATH)
+            self.settings = UserSettings(default_path="downloads")
             self.storage.save_settings(self.settings)
 
-            # Обновляем поля
-            self.download_path_field.value = self.settings.default_path
+            # Обновляем поля - показываем реальный путь после разрешения
+            self.download_path_field.value = NURBOOKS_DOWNLOADS_PATH
             self.theme_dropdown.value = self.settings.theme or "light"
             self.language_dropdown.value = self.settings.language or "ru"
             self.pdf_reader_dropdown.value = self.settings.pdf_reader or "ask"

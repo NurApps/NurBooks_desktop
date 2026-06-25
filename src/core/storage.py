@@ -6,7 +6,7 @@ import urllib.request
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from src.core.models import Book, Author, UserSettings, Notification
-from src.config import DEFAULT_DATA_PATH, DEFAULT_PDFS_PATH, NURBOOKS_DOWNLOADS_PATH
+from src.config import DEFAULT_DATA_PATH, DEFAULT_PDFS_PATH, NURBOOKS_DOWNLOADS_PATH, SYSTEM_DOWNLOADS_PATH
 from src.core.database import Database
 from src.core.firebase_client import firebase_client
 from src.core.author_manager import AuthorManager
@@ -203,17 +203,25 @@ class Storage:
         """Сохраняет авторов через AuthorManager"""
         self.author_manager.save_authors(authors)
 
+    def _resolve_download_path(self, path: str) -> str:
+        """Разрешает путь загрузки: 'downloads' -> реальный путь в ~/Downloads/downloads-nurbooks"""
+        if path == "downloads":
+            return NURBOOKS_DOWNLOADS_PATH
+        return path
+
     def load_settings(self) -> UserSettings:
         """Загружает настройки пользователя"""
         try:
             with open(f"{self.data_path}/settings.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return UserSettings(**data)
+                settings = UserSettings(**data)
+                settings.default_path = self._resolve_download_path(settings.default_path)
+                return settings
         except FileNotFoundError:
-            return UserSettings(default_path="downloads")
+            return UserSettings(default_path=NURBOOKS_DOWNLOADS_PATH)
         except Exception as e:
             print(f"Ошибка загрузки настроек: {e}")
-            return UserSettings(default_path="downloads")
+            return UserSettings(default_path=NURBOOKS_DOWNLOADS_PATH)
 
     def save_settings(self, settings: UserSettings):
         """Сохраняет настройки пользователя"""

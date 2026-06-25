@@ -23,9 +23,9 @@ class BookViewPage:
         self.cart_widget = cart_widget
         self.on_back = on_back
         self.on_read = on_read
-        self.downloader = Downloader()
         self.storage = Storage()
         self.settings = self.storage.load_settings()
+        self.downloader = Downloader(download_path=self.settings.default_path)
 
         # Загружаем список избранных книг
         self.favorite_books = self._load_favorite_books()

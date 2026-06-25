@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "NurBooks"
-APP_VERSION = "1.3.0 Beta"
+APP_VERSION = "1.3.1 Beta"
 APP_DESCRIPTION = "Электронная исламская библиотека от NurApps."
 DEVELOPERS = ["Salikh Suyundikov", "Daniyal Kislicky"]
 TESTERS = ["Mukhammad Odilov"]
@@ -32,7 +32,6 @@ DEFAULT_SAVE_PATH = os.path.join(BASE_PATH, "saved_books")
 DEFAULT_DATA_PATH = os.path.join(BASE_PATH, "data")
 DEFAULT_ASSETS_PATH = os.path.join(BASE_PATH, "assets")
 DEFAULT_PDFS_PATH = os.path.join(BASE_PATH, "pdfs")
-SYSTEM_DOWNLOADS_PATH = str(Path.home() / "Downloads")  # Системная папка загрузок
 # Настройки отображения
 ITEMS_PER_PAGE = 12
 
