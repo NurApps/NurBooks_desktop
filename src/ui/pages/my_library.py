@@ -1,5 +1,6 @@
 import flet as ft
 import os
+import threading
 from typing import List
 from src.core.downloader import Downloader
 from src.core.notifications import NotificationManager
@@ -16,14 +17,23 @@ class MyLibraryPage:
         self.storage = Storage()
         self.settings = self.storage.load_settings()
         self.downloader = Downloader(download_path=self.settings.default_path)
-        self.on_read_book = on_read_book  # Callback для открытия встроенной читалки
+        self.on_read_book = on_read_book
+        self._search_timer = None
+        self.search_query = ""
         
         self.downloaded_books: List[str] = []
-        self.saved_books: List[str] = []  # Здесь будут ID сохраненных книг
-        self.favorite_books: List[str] = []  # Здесь будут ID избранных книг
-        self.bookmarks = []  # Список закладок (bookmark, book) из БД
+        self.saved_books: List[str] = []
+        self.favorite_books: List[str] = []
+        self.bookmarks = []
         
         self._load_data()
+        self.search_field = ft.TextField(
+            hint_text="Поиск в библиотеке...",
+            prefix_icon=ft.icons.SEARCH,
+            expand=True,
+            on_change=self._on_search_change,
+            height=40,
+        )
         self.content = self._create_content()
     
     def _load_data(self):
@@ -142,16 +152,23 @@ class MyLibraryPage:
             return "Неизвестно"
 
     def _find_book_by_filename(self, filename: str, books: list = None) -> Book:
-        """Находит книгу по имени файла"""
+        """Находит книгу по имени файла (формат: {id}_{title}.pdf или book_{id}.pdf)"""
         if books is None:
             books = self.storage.load_books()
-        book_id_str = filename.split("_")[0]
+        name = filename.replace('.pdf', '')
+        parts = name.split('_', 1)
+        if parts[0].isdigit():
+            for book in books:
+                if str(book.id) == parts[0]:
+                    return book
+        elif name.startswith('book_') and name[5:].isdigit():
+            for book in books:
+                if str(book.id) == name[5:]:
+                    return book
         for book in books:
-            if str(book.id) == book_id_str:
+            if book.title and (book.title[:30].replace(' ', '_') in filename or book.title.lower() in filename.lower()):
                 return book
-            if book.title and book.title[:30].replace(" ", "_") in filename:
-                return book
-        return Book(id=0, title=filename.replace(".pdf", ""), author="Неизвестно",
+        return Book(id=0, title=name, author="Неизвестно",
                      category="", year=0, description="", cover="", pdf="")
 
     def _show_book_info(self, book: Book):
@@ -318,54 +335,147 @@ class MyLibraryPage:
             margin=ft.margin.only(bottom=8)
         )
     
+    def _on_search_change(self, e):
+        """Debounce поиска — ждём 300мс после последнего ввода"""
+        if self._search_timer:
+            self._search_timer.cancel()
+        self._search_timer = threading.Timer(0.3, self._apply_search)
+        self._search_timer.start()
+
+    def _on_tab_change(self, e):
+        self._current_tab_index = e.control.selected_index
+
+    def _apply_search(self, e=None):
+        q = self.search_field.value.lower().strip() if self.search_field.value else ""
+        self.search_query = q
+        tabs = self._build_tabs()
+        # При поиске скрываем "Продолжить чтение"
+        continue_section = self._create_continue_reading_section()
+        continue_section.visible = not bool(self.search_query)
+        controls = self.content.content.controls  # [header, continue_section, tabs]
+        controls[1] = continue_section
+        controls[2] = tabs
+        if self.page:
+            self.page.update()
+
+    def _build_tabs(self) -> ft.Tabs:
+        return ft.Tabs(
+            selected_index=getattr(self, '_current_tab_index', 0),
+            animation_duration=300,
+            on_change=self._on_tab_change,
+            tabs=[
+                ft.Tab(
+                    text="Мои книги",
+                    content=self._create_my_books_tab()
+                ),
+                ft.Tab(
+                    text="Избранные книги",
+                    content=self._create_favorite_tab()
+                ),
+                ft.Tab(
+                    text="Мои закладки",
+                    content=self._create_bookmarks_tab()
+                ),
+            ],
+            expand=1,
+        )
+
+    def _create_continue_reading_section(self) -> ft.Control:
+        """Создает секцию 'Продолжить чтение'"""
+        db = Database()
+        progress_map = db.get_all_reading_progress()
+        if not progress_map:
+            return ft.Container(height=0)
+
+        all_books = self.storage.load_books()
+        items = []
+        for book_id, page in progress_map.items():
+            book = next((b for b in all_books if b.id == book_id), None)
+            if not book:
+                continue
+            items.append(ft.Container(
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Icon(ft.icons.MENU_BOOK, color=ft.colors.GREEN, size=22),
+                        bgcolor=ft.colors.GREEN_50, border_radius=20,
+                        width=40, height=40, alignment=ft.alignment.center,
+                    ),
+                    ft.Column([
+                        ft.Text(book.title, weight=ft.FontWeight.BOLD, size=14),
+                        ft.Text(f"Страница {page}", size=12, color=ft.colors.GREY_700),
+                    ], expand=True, spacing=2),
+                    ft.FilledTonalButton(
+                        "Продолжить",
+                        icon=ft.icons.PLAY_ARROW,
+                        on_click=lambda e, b=book, p=page: self._open_book_at_page(b, p),
+                    ),
+                ], spacing=12),
+                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                bgcolor=ft.colors.SURFACE,
+                border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+                border_radius=12,
+                margin=ft.margin.only(bottom=6),
+            ))
+
+        if not items:
+            return ft.Container(height=0)
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.icons.HISTORY, size=18, color=ft.colors.PRIMARY),
+                    ft.Text("Продолжить чтение", size=16, weight=ft.FontWeight.BOLD),
+                ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Divider(height=8, color=ft.colors.OUTLINE_VARIANT),
+                ft.Column(items, spacing=0),
+            ]),
+            padding=ft.padding.symmetric(horizontal=20, vertical=5),
+            margin=ft.margin.only(bottom=5),
+        )
+
+    def _open_book_at_page(self, book, page_number):
+        if self.on_read_book:
+            self.on_read_book(book, page_number)
+
     def _create_content(self) -> ft.Control:
         """Создает содержимое страницы"""
         return ft.Container(
             content=ft.Column([
-                # Заголовок
                 ft.Container(
-                    content=ft.Text("Моя библиотека", size=28, weight=ft.FontWeight.BOLD),
+                    content=ft.Column([
+                        ft.Text("Моя библиотека", size=28, weight=ft.FontWeight.BOLD),
+                        ft.Container(
+                            content=self.search_field,
+                            margin=ft.margin.only(top=5),
+                        ),
+                    ]),
                     padding=ft.padding.only(left=20, right=20, top=20, bottom=10)
                 ),
-                
-                # Вкладки
-                ft.Tabs(
-                    selected_index=0,
-                    animation_duration=300,
-                    tabs=[
-                        ft.Tab(
-                            text="Мои книги",
-                            content=self._create_my_books_tab()
-                        ),
-                        ft.Tab(
-                            text="Избранные книги",
-                            content=self._create_favorite_tab()
-                        ),
-                        ft.Tab(
-                            text="Мои закладки",
-                            content=self._create_bookmarks_tab()
-                        ),
-                    ],
-                    expand=1,
-                ),
+                self._create_continue_reading_section(),
+                self._build_tabs(),
             ]),
             expand=True
         )
     
+    def _matches_search(self, book) -> bool:
+        q = self.search_query
+        if not q:
+            return True
+        return q in book.title.lower() or q in book.author.lower() or q in book.category.lower()
+
     def _create_my_books_tab(self) -> ft.Control:
         """Создает вкладку Мои книги (скачанные + сохраненные)"""
         book_items = []
 
-        # Сначала скачанные книги
         all_books = self.storage.load_books()
         for filename in self.downloaded_books:
             book = self._find_book_by_filename(filename, all_books)
-            book_items.append(self._create_downloaded_book_item(book, filename))
+            if self._matches_search(book):
+                book_items.append(self._create_downloaded_book_item(book, filename))
 
-        # Затем сохраненные книги, которых нет среди скачанных
         for book_id in self.saved_books:
             book = next((b for b in all_books if str(b.id) == book_id), None)
-            if not book:
+            if not book or not self._matches_search(book):
                 continue
             is_downloaded, _ = self.downloader.is_book_downloaded(book)
             if not is_downloaded:
@@ -375,7 +485,7 @@ class MyLibraryPage:
             return ft.Container(
                 content=ft.Column([
                     ft.Icon(ft.icons.FOLDER_OPEN, size=48, color=ft.colors.GREY),
-                    ft.Text("Нет книг", size=16, color=ft.colors.GREY),
+                    ft.Text("Ничего не найдено" if self.search_query else "Нет книг", size=16, color=ft.colors.GREY),
                     ft.Text("Скачайте или сохраните книги из каталога", size=12, color=ft.colors.GREY_600),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=20,
@@ -384,11 +494,7 @@ class MyLibraryPage:
 
         return ft.Container(
             content=ft.Column([
-                ft.Text(
-                    f"Всего книг: {len(book_items)}",
-                    size=14,
-                    color=ft.colors.GREY
-                ),
+                ft.Text(f"Всего книг: {len(book_items)}", size=14, color=ft.colors.GREY),
                 ft.Container(
                     content=ft.Column(book_items, scroll=ft.ScrollMode.ADAPTIVE),
                     padding=10,
@@ -401,29 +507,28 @@ class MyLibraryPage:
     
     def _create_favorite_tab(self) -> ft.Control:
         """Создает вкладку с избранными книгами"""
-        if not self.favorite_books:
+        all_books = self.storage.load_books()
+
+        book_items = []
+        for book_id in self.favorite_books:
+            book = next((b for b in all_books if str(b.id) == book_id), None)
+            if book and self._matches_search(book):
+                book_items.append(self._create_favorite_book_item(book_id))
+
+        if not book_items:
             return ft.Container(
                 content=ft.Column([
                     ft.Icon(ft.icons.FAVORITE_BORDER, size=48, color=ft.colors.GREY),
-                    ft.Text("Нет избранных книг", size=16, color=ft.colors.GREY),
+                    ft.Text("Ничего не найдено" if self.search_query else "Нет избранных книг", size=16, color=ft.colors.GREY),
                     ft.Text("Добавьте книги в избранное из каталога", size=12, color=ft.colors.GREY_600),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=20,
                 alignment=ft.alignment.center
             )
         
-        book_items = []
-        for book_id in self.favorite_books:
-            item = self._create_favorite_book_item(book_id)
-            book_items.append(item)
-        
         return ft.Container(
             content=ft.Column([
-                ft.Text(
-                    f"Избранных книг: {len(self.favorite_books)}",
-                    size=14,
-                    color=ft.colors.GREY
-                ),
+                ft.Text(f"Избранных книг: {len(book_items)}", size=14, color=ft.colors.GREY),
                 ft.Container(
                     content=ft.Column(book_items, scroll=ft.ScrollMode.ADAPTIVE),
                     padding=10,
@@ -436,21 +541,23 @@ class MyLibraryPage:
     
     def _create_bookmarks_tab(self) -> ft.Control:
         """Создает вкладку с закладками"""
-        if not self.bookmarks:
+        bookmark_items = []
+        for bm_data in self.bookmarks:
+            _, book = bm_data
+            if book and self._matches_search(book):
+                bookmark_items.append(self._create_bookmark_item(bm_data))
+
+        if not bookmark_items:
             return ft.Container(
                 content=ft.Column([
                     ft.Icon(ft.icons.BOOKMARK, size=48, color=ft.colors.GREY),
-                    ft.Text("Нет закладок", size=16, color=ft.colors.GREY),
+                    ft.Text("Ничего не найдено" if self.search_query else "Нет закладок", size=16, color=ft.colors.GREY),
                     ft.Text("Добавьте закладки при чтении книг", size=12, color=ft.colors.GREY_600),
                     ft.Text("через кнопку ★ в читалке", size=12, color=ft.colors.GREY_600),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=20,
                 alignment=ft.alignment.center
             )
-        
-        bookmark_items = []
-        for bm_data in self.bookmarks:
-            bookmark_items.append(self._create_bookmark_item(bm_data))
         
         return ft.Container(
             content=ft.Column([
@@ -566,6 +673,10 @@ class MyLibraryPage:
     
     def _show_reader_choice_dialog(self, filename: str, file_path: str):
         """Показывает диалог выбора читалки"""
+        all_books = self.storage.load_books()
+        book = self._find_book_by_filename(filename, all_books)
+        display_name = book.title if book.id > 0 else filename.replace('.pdf', '')
+
         def on_builtin(e):
             self.page.dialog.open = False
             self.page.update()
@@ -583,8 +694,6 @@ class MyLibraryPage:
         def on_always_system(e):
             self._save_reader_preference("system")
             on_system(e)
-        
-        display_name = filename[:40] + "..." if len(filename) > 40 else filename
         
         self.page.dialog = ft.AlertDialog(
             title=ft.Row([
@@ -737,6 +846,10 @@ class MyLibraryPage:
 
     def _on_delete_downloaded_click(self, filename: str):
         """Удаляет скачанную книгу"""
+        all_books = self.storage.load_books()
+        book = self._find_book_by_filename(filename, all_books)
+        display_name = book.title if book.id > 0 else filename.replace('.pdf', '')
+
         def confirm_delete(e):
             if self.downloader.delete_book(filename):
                 self.downloaded_books = [f for f in self.downloaded_books if f != filename]
@@ -746,7 +859,7 @@ class MyLibraryPage:
                 if self.notification_manager:
                     self.notification_manager.add_notification(
                         title="Книга удалена",
-                        message=f"Файл '{filename}' удален",
+                        message=f"'{display_name}' удалена",
                         type="info"
                     )
 
@@ -755,7 +868,7 @@ class MyLibraryPage:
 
         self.page.dialog = ft.AlertDialog(
             title=ft.Text("Подтверждение удаления"),
-            content=ft.Text(f"Вы уверены, что хотите удалить файл '{filename}'?"),
+            content=ft.Text(f"Удалить книгу «{display_name}»?"),
             actions=[
                 ft.TextButton("Отмена", on_click=self._close_delete_dialog),
                 ft.TextButton("Удалить", on_click=confirm_delete, style=ft.ButtonStyle(color=ft.colors.RED)),

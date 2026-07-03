@@ -509,6 +509,22 @@ class Database:
             conn.close()
             return None
 
+    def get_all_reading_progress(self) -> dict:
+        """Возвращает {book_id: page_number} для всех книг с прогрессом"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT book_id, page_number FROM reading_progress ORDER BY timestamp DESC"
+            )
+            rows = cursor.fetchall()
+            conn.close()
+            return {row[0]: row[1] for row in rows}
+        except Exception as e:
+            logger.error(f"Ошибка получения всего прогресса чтения: {e}", exc_info=True)
+            conn.close()
+            return {}
+
     def get_all_books(self) -> List[Book]:
         """Получает все книги из базы данных"""
         try:

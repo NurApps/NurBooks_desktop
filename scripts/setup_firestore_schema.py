@@ -47,8 +47,9 @@ def setup_firestore():
         # Инициализация
         if not firebase_admin._DEFAULT_APP_NAME in firebase_admin._apps:
             cred = credentials.Certificate(service_account_path)
+            from src.config import FirebaseConfig
             firebase_admin.initialize_app(cred, {
-                'projectId': 'nurbooks-12345'  # ЗАМЕНИ НА СВОЙ PROJECT_ID
+                'projectId': FirebaseConfig.PROJECT_ID
             })
 
         db = firestore.client()
@@ -86,6 +87,25 @@ def setup_firestore():
      downloadCount: 0,
      createdAt: Timestamp,
      updatedAt: Timestamp
+   }""")
+    print()
+
+    print("[AUTH] Коллекция 'authors'")
+    print("   Структура документа:")
+    print("""   {
+     id: 1,
+     name: "Имя автора",
+     bio: "Биография",
+     books: [1, 2, 3]
+   }""")
+    print()
+
+    print("[AE] Коллекция 'analytics_events'")
+    print("   Структура документа:")
+    print("""   {
+     eventType: "view" | "download",
+     bookId: 1,
+     timestamp: "2024-12-01T10:30:00"
    }""")
     print()
 
@@ -141,6 +161,19 @@ service cloud.firestore {
     match /analytics/{bookId} {
       allow read: if true;
       allow write: if false; // Только через Cloud Functions или Admin SDK
+    }
+
+    // Авторы - публичное чтение, запись через Admin SDK
+    match /authors/{authorId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // События аналитики - запись всем, чтение только авторизованным
+    match /analytics_events/{eventId} {
+      allow read: if request.auth != null;
+      allow create: if true;
+      allow update, delete: if false;
     }
 
     // Пользователи

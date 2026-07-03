@@ -425,10 +425,6 @@ class BookViewPage:
     
     def _show_download_required_dialog(self):
         """Показывает диалог о необходимости скачивания"""
-        def on_download(e):
-            self.page.close()
-            self._on_download_click(e)
-        
         dlg = ft.AlertDialog(
             title=ft.Row([
                 ft.Icon(ft.icons.DOWNLOAD, color=ft.colors.PRIMARY),
@@ -440,11 +436,11 @@ class BookViewPage:
                 ft.Text(f"Размер: {self.book.file_size or 'Неизвестно'}"),
             ], tight=True, spacing=10),
             actions=[
-                ft.TextButton("Отмена", on_click=lambda e: self._close_dialog()),
+                ft.TextButton("Отмена", on_click=lambda e: self.page.close(dlg)),
                 ft.ElevatedButton(
                     "Скачать",
                     icon=ft.icons.DOWNLOAD,
-                    on_click=on_download
+                    on_click=lambda e: (self.page.close(dlg), self._on_download_click(e))
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -453,23 +449,6 @@ class BookViewPage:
     
     def _show_reader_choice_dialog(self, filepath: str):
         """Показывает диалог выбора читалки"""
-        def on_builtin(e):
-            self.page.close()
-            if self.on_read:
-                self.on_read(self.book)
-        
-        def on_system(e):
-            self.page.close()
-            self._open_downloaded_book(filepath)
-        
-        def on_always_builtin(e):
-            self._save_reader_preference("builtin")
-            on_builtin(e)
-        
-        def on_always_system(e):
-            self._save_reader_preference("system")
-            on_system(e)
-        
         dlg = ft.AlertDialog(
             title=ft.Row([
                 ft.Icon(ft.icons.MENU_BOOK, color=ft.colors.PRIMARY),
@@ -483,7 +462,7 @@ class BookViewPage:
                 ft.Column([
                     ft.ElevatedButton(
                         "📖 Встроенная читалка",
-                        on_click=on_builtin,
+                        on_click=lambda e: (self.page.close(dlg), self.on_read(self.book) if self.on_read else None),
                         width=250,
                         style=ft.ButtonStyle(
                             bgcolor=ft.colors.PRIMARY_CONTAINER,
@@ -491,7 +470,7 @@ class BookViewPage:
                     ),
                     ft.ElevatedButton(
                         "📄 Системная программа",
-                        on_click=on_system,
+                        on_click=lambda e: (self.page.close(dlg), self._open_downloaded_book(filepath)),
                         width=250,
                     ),
                     ft.Divider(),
@@ -499,12 +478,12 @@ class BookViewPage:
                     ft.Row([
                         ft.TextButton(
                             "Всегда встроенная",
-                            on_click=on_always_builtin,
+                            on_click=lambda e: (self._save_reader_preference("builtin"), self.page.close(dlg), self.on_read and self.on_read(self.book)),
                             icon=ft.icons.STAR_BORDER,
                         ),
                         ft.TextButton(
                             "Всегда системная",
-                            on_click=on_always_system,
+                            on_click=lambda e: (self._save_reader_preference("system"), self.page.close(dlg), self._open_downloaded_book(filepath)),
                             icon=ft.icons.STAR_BORDER,
                         ),
                     ], alignment=ft.MainAxisAlignment.CENTER),
@@ -528,9 +507,10 @@ class BookViewPage:
         self.page.snack_bar.open = True
         self.page.update()
     
-    def _close_dialog(self):
+    def _close_dialog(self, dlg=None):
         """Закрывает диалог"""
-        self.page.close()
+        if dlg:
+            self.page.close(dlg)
         
     def _create_recommendations_section(self) -> ft.Control:
         """Создает раздел с рекомендованными книгами"""

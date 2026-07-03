@@ -44,11 +44,11 @@ EMAIL_PASSWORD = ""
 # Настройки Firebase
 class FirebaseConfig:
     """Конфигурация Firebase"""
-    PROJECT_ID = "nurbooks-a0eae"
-    API_KEY = "AIzaSyANvlQklcvuN0CvJyAPgBSgkx5WxBnBU0I"
-    AUTH_DOMAIN = "nurbooks-a0eae.firebaseapp.com"
-    MESSAGING_SENDER_ID = "450800613168"
-    APP_ID = "1:450800613168:web:fe73241e86fdf4ed053af5"
+    PROJECT_ID = "nurbooks-3b694"
+    API_KEY = "AIzaSyAR_4MpDYgYhhUahYWnGTJ_tS_rV1DhKPI"
+    AUTH_DOMAIN = "nurbooks-3b694.firebaseapp.com"
+    MESSAGING_SENDER_ID = "9086132352"
+    APP_ID = "1:9086132352:web:fbed7cfafa2df0d4a20665"
     SERVICE_ACCOUNT_KEY_PATH = "serviceAccountKey.json"
     
     @classmethod

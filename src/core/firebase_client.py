@@ -244,6 +244,46 @@ class FirebaseClient:
             logger.error(f"Ошибка получения закладок: {e}", exc_info=True)
             return []
     
+    # ============= Analytics Events =============
+
+    def log_analytics_event(self, event_type: str, book_id: int, metadata: Dict[str, Any] = None) -> bool:
+        """Логирует событие аналитики в Firestore коллекцию analytics_events"""
+        if not self._initialized or not self._db:
+            return False
+        try:
+            from datetime import datetime
+            event_data = {
+                'eventType': event_type,
+                'bookId': book_id,
+                'timestamp': datetime.now().isoformat()
+            }
+            if metadata:
+                event_data.update(metadata)
+            self._db.collection('analytics_events').add(event_data)
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка логирования события {event_type}: {e}", exc_info=True)
+            return False
+
+    def get_book_analytics(self, book_id: int) -> Dict[str, Any]:
+        """Получает агрегированную аналитику по книге из Firestore"""
+        if not self._initialized or not self._db:
+            return {}
+        try:
+            events = self._db.collection('analytics_events').where('bookId', '==', book_id).stream()
+            views = 0
+            downloads = 0
+            for doc in events:
+                data = doc.to_dict()
+                if data.get('eventType') == 'view':
+                    views += 1
+                elif data.get('eventType') == 'download':
+                    downloads += 1
+            return {'views': views, 'downloads': downloads}
+        except Exception as e:
+            logger.error(f"Ошибка получения аналитики: {e}", exc_info=True)
+            return {}
+
     # ============= Auth =============
     
     def sign_in_anonymous(self) -> Optional[str]:

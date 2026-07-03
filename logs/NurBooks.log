@@ -1,26 +1,48 @@
-2026-05-16 20:49:35 | CRITICAL | NurBooks | handle_exception:95 | Необработанное исключение
+PS D:\projects\NurBooks_desktop> (Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& d:\projects\NurBooks_desktop\.venv\Scripts\Activate.ps1)
+(NurBooks) PS D:\projects\NurBooks_desktop> & d:\projects\NurBooks_desktop\.venv\Scripts\python.exe d:/projects/NurBooks_desktop/src/ui/main.py
+2026-06-27 10:47:42 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 10:47:42 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 10:47:42 | INFO     | src.core.statistics_manager | __init__:44 | StatisticsManager: Firebase=True
+Ошибка загрузки настроек: UserSettings.__init__() got an unexpected keyword argument 'enable云flare_storage'
+Ошибка загрузки настроек: UserSettings.__init__() got an unexpected keyword argument 'enable云flare_storage'
+Ошибка загрузки настроек: UserSettings.__init__() got an unexpected keyword argument 'enable云flare_storage'
+2026-06-27 10:47:55 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=2 (общий счётчик: 2)
+Ошибка загрузки настроек: UserSettings.__init__() got an unexpected keyword argument 'enable云flare_storage'
+Future exception was never retrieved
+future: <Future finished exception=TypeError("Page.close() missing 1 required positional argument: 'control'")>
 Traceback (most recent call last):
-  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 10, in <module>
-    from src.ui.pages.catalog_page import CatalogPage
-  File "d:\projects\NurBooks_desktop\src\ui\pages\catalog_page.py", line 3, in <module>
-    from src.core.storage import Storage
-  File "d:\projects\NurBooks_desktop\src\core\storage.py", line 10, in <module>
-    from src.core.database import Database
-  File "d:\projects\NurBooks_desktop\src\core\database.py", line 7, in <module>
-    from src.core.analytics import Analytics
-  File "d:\projects\NurBooks_desktop\src\core\analytics.py", line 11, in <module>
-    from src.core.database import Database
-ImportError: cannot import name 'Database' from partially initialized module 'src.core.database' (most likely due to a circular import) (d:\projects\NurBooks_desktop\src\core\database.py)
-2026-05-18 14:22:06 | CRITICAL | NurBooks | handle_exception:95 | Необработанное исключение
+  File "C:\Users\Huawei\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\projects\NurBooks_desktop\.venv\Lib\site-packages\flet_core\page.py", line 944, in wrapper
+    handler(*args)
+  File "d:\projects\NurBooks_desktop\src\ui\pages\book_view.py", line 457, in on_builtin
+    self.page.close()
+TypeError: Page.close() missing 1 required positional argument: 'control'
+2026-06-27 10:48:00 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 10:48:00 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+Ошибка загрузки настроек: UserSettings.__init__() got an unexpected keyword argument 'enable云flare_storage'
+Ошибка загрузки настроек: UserSettings.__init__() got an unexpected keyword argument 'enable云flare_storage'
+Future exception was never retrieved
+future: <Future finished exception=TypeError("GestureDetector.__init__() got an unexpected keyword argument 'on_swipe_left'")>
 Traceback (most recent call last):
-  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 10, in <module>
-    from src.ui.pages.catalog_page import CatalogPage
-  File "d:\projects\NurBooks_desktop\src\ui\pages\catalog_page.py", line 3, in <module>
-    from src.core.storage import Storage
-  File "d:\projects\NurBooks_desktop\src\core\storage.py", line 10, in <module>
-    from src.core.database import Database
-  File "d:\projects\NurBooks_desktop\src\core\database.py", line 7, in <module>
-    from src.core.analytics import Analytics
-  File "d:\projects\NurBooks_desktop\src\core\analytics.py", line 11, in <module>
-    from src.core.database import Database
-ImportError: cannot import name 'Database' from partially initialized module 'src.core.database' (most likely due to a circular import) (d:\projects\NurBooks_desktop\src\core\database.py)
+  File "C:\Users\Huawei\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\projects\NurBooks_desktop\.venv\Lib\site-packages\flet_core\page.py", line 944, in wrapper
+    handler(*args)
+  File "d:\projects\NurBooks_desktop\src\ui\pages\my_library.py", line 683, in on_builtin
+    self._open_in_builtin_reader(filename)
+  File "d:\projects\NurBooks_desktop\src\ui\pages\my_library.py", line 773, in _open_in_builtin_reader
+    self.on_read_book(temp_book)
+  File "d:\projects\NurBooks_desktop\src\ui\main.py", line 814, in _show_pdf_reader
+    reader = PDFReaderPage(
+             ^^^^^^^^^^^^^^
+  File "d:\projects\NurBooks_desktop\src\ui\pages\pdf_reader.py", line 185, in __init__
+    self.content = self._build_ui()
+                   ^^^^^^^^^^^^^^^^
+  File "d:\projects\NurBooks_desktop\src\ui\pages\pdf_reader.py", line 205, in _build_ui
+    scrollable_content = ft.GestureDetector(
+                         ^^^^^^^^^^^^^^^^^^^
+TypeError: GestureDetector.__init__() got an unexpected keyword argument 'on_swipe_left'
+(NurBooks) PS D:\projects\NurBooks_desktop> 

@@ -56,7 +56,9 @@ class StatisticsManager:
         try:
             if self._use_firebase:
                 from src.core.firebase_client import firebase_client
-                return firebase_client.increment_view_count(book_id)
+                result = firebase_client.increment_view_count(book_id)
+                firebase_client.log_analytics_event('view', book_id)
+                return result
             else:
                 success = self.database.increment_book_view_count(book_id)
                 if success:
@@ -64,7 +66,6 @@ class StatisticsManager:
                 return success
         except Exception as e:
             logger.error(f"Ошибка при увеличении просмотров: {e}", exc_info=True)
-            # Fallback на SQLite если Firebase упал
             self._use_firebase = False
             try:
                 return self.database.increment_book_view_count(book_id)
@@ -76,7 +77,9 @@ class StatisticsManager:
         try:
             if self._use_firebase:
                 from src.core.firebase_client import firebase_client
-                return firebase_client.increment_download_count(book_id)
+                result = firebase_client.increment_download_count(book_id)
+                firebase_client.log_analytics_event('download', book_id)
+                return result
             else:
                 success = self.database.increment_book_download_count(book_id)
                 if success:

@@ -46,7 +46,7 @@ class UserSettings:
     cloudflare_api_token: str = ""
     cloudflare_account_id: str = ""
     cloudflare_bucket_name: str = ""
-    enable云flare_storage: bool = False
+    enable_cloudflare_storage: bool = False
     
     # Аутентификация и приватность
     require_auth: bool = False
