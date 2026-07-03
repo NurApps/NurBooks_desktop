@@ -21,6 +21,7 @@ from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
 from src.core.storage import Storage
 from src.core.downloader import Downloader
 from src.core.models import Book
+from src.core.firebase_client import firebase_client
 from src.config import APP_NAME, APP_VERSION
 
 def resource_path(relative_path):
@@ -36,7 +37,7 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
-class NurBooksApp:
+class NurBooksApp:  
     def __init__(self, page: ft.Page):
         self.page = page
         self.page.title = f"{APP_NAME} v{APP_VERSION}"
@@ -101,8 +102,8 @@ class NurBooksApp:
             animate_position=ft.animation.Animation(300, ft.AnimationCurve.EASE_IN_OUT)
         )
         
-        # Инициализация начальной страницы
-        self._show_catalog_page()
+        # Инициализация начальной страницы (синхронно, page.add ещё не вызван)
+        self._build_catalog_page()
         
         # Создание основного макета
         self.page.add(
@@ -146,6 +147,21 @@ class NurBooksApp:
     
     def _create_top_app_bar(self) -> ft.Control:
         """Создает верхнюю панель приложения"""
+        online = firebase_client.is_initialized()
+        self._firebase_indicator = ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    width=8, height=8,
+                    bgcolor=ft.colors.GREEN if online else ft.colors.GREY_400,
+                    border_radius=4,
+                ),
+                ft.Text("Online" if online else "Offline",
+                        size=10, color=ft.colors.GREY_600),
+            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            tooltip="Firestore: " + ("подключён" if online else "недоступен"),
+            padding=ft.padding.only(left=8),
+        )
+
         return ft.Container(
             content=ft.Row([
                 # Логотип и название
@@ -158,6 +174,7 @@ class NurBooksApp:
                         border_radius=20,
                     ),
                     ft.Text(APP_NAME, size=20, weight=ft.FontWeight.BOLD),
+                    self._firebase_indicator,
                 ]),
                 
                 ft.Container(expand=True),
@@ -526,16 +543,46 @@ class NurBooksApp:
         self.nav_rail.selected_index = index
         self.page.update()
     
-    def _show_catalog_page(self, update_ui: bool = True):
-        """Показывает страницу каталога"""
-        catalog_page = CatalogPage(
-            page=self.page,
-            on_book_click=self._on_book_selected
+    def _show_loading(self, message: str = "Загрузка..."):
+        """Показывает индикатор загрузки"""
+        self.main_content.content = ft.Container(
+            content=ft.Column([
+                ft.ProgressRing(width=40, height=40),
+                ft.Text(message, size=16, color=ft.colors.GREY),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20),
+            alignment=ft.alignment.center, expand=True
         )
-        self.main_content.content = catalog_page.build()
-        self.current_page = "catalog"
-        if update_ui:
+        self.page.update()
+
+    def _load_page_async(self, page_type: str, build_func, cache_check=None):
+        """Загружает страницу асинхронно с показом лоадера"""
+        if cache_check and cache_check():
+            build_func()
             self.page.update()
+            return
+        self._show_loading()
+        threading.Thread(target=lambda: self._do_load_page(build_func), daemon=True).start()
+
+    def _do_load_page(self, build_func):
+        try:
+            build_func()
+        except Exception as e:
+            from src.core.logger import get_logger
+            get_logger(__name__).error(f"Ошибка загрузки страницы: {e}", exc_info=True)
+        self.page.update()
+
+    def _show_catalog_page(self, update_ui: bool = True):
+        self.current_page = "catalog"
+        self._load_page_async("catalog",
+            lambda: self._build_catalog_page(),
+            lambda: self.storage._books_cache is not None
+        )
+
+    def _build_catalog_page(self):
+        books = self.storage.load_books()
+        cp = CatalogPage(page=self.page, books=books, on_book_click=self._on_book_selected)
+        self.main_content.content = cp.build()
+        self.current_page = "catalog"
 
     def _show_book_proposal_form(self, update_ui: bool = True):
         """Показывает страницу с инструкцией как предложить книгу"""
@@ -549,27 +596,27 @@ class NurBooksApp:
             self.page.update()
     
     def _show_authors_page(self, update_ui: bool = True):
-        """Показывает страницу авторов"""
-        authors_page = AuthorsPage(
-            page=self.page,
-            on_author_click=self._on_author_selected
-        )
-        self.main_content.content = authors_page.build()
         self.current_page = "authors"
-        if update_ui:
-            self.page.update()
+        self._load_page_async("authors",
+            lambda: self._build_authors_page(),
+            lambda: self.storage._authors_cache is not None
+        )
+
+    def _build_authors_page(self):
+        authors = self.storage.load_authors()
+        ap = AuthorsPage(page=self.page, authors=authors, on_author_click=self._on_author_selected)
+        self.main_content.content = ap.build()
+        self.current_page = "authors"
     
     def _show_my_library_page(self, update_ui: bool = True):
-        """Показывает страницу моей библиотеки"""
-        library_page = MyLibraryPage(
-            page=self.page,
-            notification_manager=self.notification_manager,
-            on_read_book=self._show_pdf_reader
-        )
-        self.main_content.content = library_page.build()
         self.current_page = "library"
-        if update_ui:
-            self.page.update()
+        self._load_page_async("library", lambda: self._build_library_page())
+
+    def _build_library_page(self):
+        lp = MyLibraryPage(page=self.page, notification_manager=self.notification_manager,
+                           on_read_book=self._show_pdf_reader)
+        self.main_content.content = lp.build()
+        self.current_page = "library"
     
     def _show_settings_page(self, update_ui: bool = True):
         """Показывает страницу настроек"""
@@ -598,12 +645,19 @@ class NurBooksApp:
             if getattr(self.page, "window", None):
                 self.page.window.close()
 
+    def _increment_view_async(self, book: Book):
+        """Фоновое обновление счётчика просмотров"""
+        try:
+            from src.core.statistics_manager import stats
+            stats.increment_view_count(book.id)
+            book.view_count = getattr(book, "view_count", 0) + 1
+        except Exception:
+            pass
+
     def _on_book_selected(self, book: Book):
         """Обработчик выбора книги"""
         self.selected_book = book
-        from src.core.statistics_manager import stats        
-        stats.increment_view_count(book.id)
-        book.view_count = getattr(book, "view_count", 0) + 1
+        threading.Thread(target=self._increment_view_async, args=(book,), daemon=True).start()
 
         # Проверяем, скачана ли книга
         is_downloaded, _ = self.downloader.is_book_downloaded(book) if book else (False, None)
@@ -854,42 +908,32 @@ class NurBooksApp:
     def _on_author_selected(self, author):
         """Обработчик выбора автора"""
         self.selected_author = author
-        
-        # Показываем книги автора
-        storage = Storage()
-        books = storage.load_books()
-        
-        # Фильтруем книги по автору
-        author_books = [book for book in books if book.id in author.books]
-        
-        # Создаем кастомную страницу с книгами автора
+
+        books = self.storage.load_books()
+        author_books = [b for b in books if b.id in author.books]
+
+        if author.bio and author.bio != "null":
+            bio_section = ft.Container(
+                content=ft.Column([
+                    ft.Text("Биография", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Text(author.bio, text_align=ft.TextAlign.JUSTIFY),
+                ]),
+                padding=20, bgcolor=ft.colors.SURFACE_VARIANT,
+                border_radius=10, margin=ft.margin.symmetric(horizontal=20, vertical=10)
+            )
+        else:
+            bio_section = ft.Container(height=0)
+
         content = ft.Container(
             content=ft.Column([
-                # Заголовок
                 ft.Container(
                     content=ft.Row([
-                        ft.IconButton(
-                            icon=ft.icons.ARROW_BACK,
-                            on_click=lambda e: self._show_authors_page()
-                        ),
+                        ft.IconButton(icon=ft.icons.ARROW_BACK, on_click=lambda e: self._show_authors_page()),
                         ft.Text(f"Книги автора: {author.name}", size=24, weight=ft.FontWeight.BOLD),
                     ]),
                     padding=ft.padding.only(left=20, top=20, bottom=10)
                 ),
-                
-                # Биография
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text("Биография", size=18, weight=ft.FontWeight.BOLD),
-                        ft.Text(author.bio, text_align=ft.TextAlign.JUSTIFY),
-                    ]),
-                    padding=20,
-                    bgcolor=ft.colors.SURFACE_VARIANT,
-                    border_radius=10,
-                    margin=ft.margin.symmetric(horizontal=20, vertical=10)
-                ),
-                
-                # Книги автора
+                bio_section,
                 ft.Container(
                     content=ft.Column([
                         ft.Text(f"Книги ({len(author_books)})", size=18, weight=ft.FontWeight.BOLD),
@@ -918,33 +962,20 @@ class NurBooksApp:
         self.page.update()
     
     def _create_simple_book_card(self, book):
-        """Создает простую карточку книги"""
         return ft.Container(
             content=ft.Column([
-                ft.Image(
-                    src=book.cover if book.cover else "assets/logo.png",
-                    width=150,
-                    height=200,
-                    fit=ft.ImageFit.COVER,
-                    border_radius=ft.border_radius.all(5),
-                ),
-                ft.Text(
-                    book.title,
-                    size=14,
-                    weight=ft.FontWeight.BOLD,
-                    max_lines=2,
-                    overflow=ft.TextOverflow.ELLIPSIS,
-                    text_align=ft.TextAlign.CENTER
-                ),
+                ft.Stack([
+                    ft.Container(bgcolor=ft.colors.GREY_300, width=150, height=200, border_radius=5),
+                    ft.Image(src=book.cover if book.cover else "assets/logo.png",
+                             width=150, height=200, fit=ft.ImageFit.COVER, border_radius=ft.border_radius.all(5)),
+                ]),
+                ft.Text(book.title, size=14, weight=ft.FontWeight.BOLD,
+                        max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, text_align=ft.TextAlign.CENTER),
             ], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            width=180,
-            height=260,
-            padding=10,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            border_radius=10,
+            width=180, height=260, padding=10,
+            bgcolor=ft.colors.SURFACE_VARIANT, border_radius=10,
             on_click=lambda e, b=book: self._on_book_selected(b),
-            tooltip=book.title,
-            ink=True,
+            tooltip=book.title, ink=True,
         )
 def main(page: ft.Page):
     NurBooksApp(page)

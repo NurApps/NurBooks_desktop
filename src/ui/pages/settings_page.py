@@ -307,9 +307,9 @@ class SettingsPage:
             actions=[
                 ft.TextButton(
                     "Отмена",
-                    on_click=lambda _: self.page.close(),
+                    on_click=lambda _, d=dlg: self.page.close(d),
                 ),
-                ft.TextButton("Очистить", on_click=lambda e: self._confirm_clear_cache(e, dlg)),
+                ft.TextButton("Очистить", on_click=lambda e, d=dlg: self._confirm_clear_cache(e, d)),
             ],
         )
         self.page.open(dlg)
@@ -317,14 +317,13 @@ class SettingsPage:
     def _confirm_clear_cache(self, e, dlg):
         """Подтверждение очистки кэша"""
         try:
-            # Очищаем папку с миниатюрами
             import shutil
 
             if os.path.exists("data/thumbnails"):
                 shutil.rmtree("data/thumbnails")
                 os.makedirs("data/thumbnails")
 
-            self.page.close()
+            self.page.close(dlg)
 
             if self.notification_manager:
                 self.notification_manager.add_notification(
@@ -363,7 +362,6 @@ class SettingsPage:
             self.settings.theme = self.theme_dropdown.value or "light"
             self.settings.language = self.language_dropdown.value or "ru"
             self.settings.pdf_reader = self.pdf_reader_dropdown.value or "ask"
-            self.settings.email_client = self.email_client_dropdown.value or "smtp"
             # Сохраняем настройки уведомлений
             self.settings.download_notifications = self.download_notifications_switch.value
             self.settings.sound_notifications = self.sound_notifications_switch.value if self.sound_notifications_switch.value is not None else False
@@ -414,9 +412,9 @@ class SettingsPage:
             actions=[
                 ft.TextButton(
                     "Отмена",
-                    on_click=lambda _: self.page.close(),
+                    on_click=lambda _, d=dlg: self.page.close(d),
                 ),
-                ft.TextButton("Сбросить", on_click=lambda e: self._confirm_reset_settings(e, dlg)),
+                ft.TextButton("Сбросить", on_click=lambda e, d=dlg: self._confirm_reset_settings(e, d)),
             ],
         )
         self.page.open(dlg)
@@ -427,22 +425,18 @@ class SettingsPage:
             self.settings = UserSettings(default_path="downloads")
             self.storage.save_settings(self.settings)
 
-            # Обновляем поля - показываем реальный путь после разрешения
             self.download_path_field.value = NURBOOKS_DOWNLOADS_PATH
             self.theme_dropdown.value = self.settings.theme or "light"
             self.language_dropdown.value = self.settings.language or "ru"
             self.pdf_reader_dropdown.value = self.settings.pdf_reader or "ask"
-            self.email_client_dropdown.value = self.settings.email_client or "smtp"
             self.download_notifications_switch.value = self.settings.download_notifications
             self.sound_notifications_switch.value = self.settings.sound_notifications
             self.update_notifications_switch.value = self.settings.update_notifications
             self.background_notifications_switch.value = self.settings.background_notifications
 
-
-            # Применяем тему по умолчанию (светлая)
             self.page.theme_mode = ft.ThemeMode.LIGHT
 
-            self.page.close()
+            self.page.close(dlg)
 
             if self.notification_manager:
                 self.notification_manager.add_notification(
@@ -459,9 +453,10 @@ class SettingsPage:
                     type="error",
                 )
 
-    def _close_dialog(self, e=None):
+    def _close_dialog(self, e=None, dlg=None):
         """Закрыть диалог"""
-        self.page.close()
+        if dlg:
+            self.page.close(dlg)
 
     def build(self) -> ft.Control:
         """Возвращает содержимое страницы"""

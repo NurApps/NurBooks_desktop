@@ -1,8 +1,10 @@
 import json
 import os
 import sys
+import time
 import shutil
 import urllib.request
+import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from src.core.models import Book, Author, UserSettings, Notification
@@ -11,17 +13,39 @@ from src.core.database import Database
 from src.core.firebase_client import firebase_client
 from src.core.author_manager import AuthorManager
 
+
 class Storage:
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, github_base_url: str = None):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self, github_base_url: str = None):
+        if self._initialized:
+            return
         self.data_path = DEFAULT_DATA_PATH
         self.pdfs_path = DEFAULT_PDFS_PATH
-        self.downloads_path = NURBOOKS_DOWNLOADS_PATH  # Папка downloads-nurbooks в Загрузках
-        self.github_base_url = github_base_url  # Базовый URL GitHub репозитория
-        self._extract_initial_data()  # Распаковываем данные перед использованием
+        self.downloads_path = NURBOOKS_DOWNLOADS_PATH
+        self.github_base_url = github_base_url
+        self._extract_initial_data()
         self.ensure_directories()
         self.database = Database()
         self.author_manager = AuthorManager()
         self.db_path = os.path.join(self.data_path, "books.db")
+
+        # Кэш в памяти
+        self._books_cache = None
+        self._authors_cache = None
+        self._thumbnail_cache = {}
+        self._last_load_time = 0
+        self._cache_ttl = 30  # секунд — принудительно обновляем раз в 30 сек
+        self._initialized = True
 
     def _convert_to_raw_url(self, url: str) -> str:
         """Конвертирует GitHub blob URL в raw URL для прямого доступа к файлу"""
@@ -138,54 +162,90 @@ class Storage:
         os.makedirs("assets/icons", exist_ok=True)
         os.makedirs("data/thumbnails", exist_ok=True)
 
-    def load_books(self) -> List[Book]:
-        """
-        Загружает книги. Сначала пробует Firebase, если он инициализирован.
-        Если нет — использует локальную БД SQLite.
-        """
+    def load_books(self, force: bool = False) -> List[Book]:
+        """Загружает книги с кэшированием (TTL 30 сек при активном Firebase)."""
+        now = time.time()
+        ttl_expired = (now - self._last_load_time) > self._cache_ttl
+
+        if self._books_cache is not None and not force and not ttl_expired:
+            return self._books_cache
+
+        self._last_load_time = now
+
         if firebase_client.is_initialized():
             books = firebase_client.get_all_books()
             if books:
-                # Опционально: можно синхронизировать локальную БД здесь
+                self._books_cache = books
                 return books
-        
-        # Fallback на локальную БД
+
         books = self.database.get_all_books()
-        
-        # Обновляем пути к обложкам для каждой книги
         for book in books:
-            # Проверяем валидность пути или URL. Если не найдено - будет None.
             book.cover = self.find_thumbnail_for_book(book)
+        self._books_cache = books
         return books
 
+    def invalidate_books_cache(self):
+        """Сбрасывает кэш книг"""
+        self._books_cache = None
+
     def find_thumbnail_for_book(self, book: Book) -> Optional[str]:
-        """Находит путь к обложке для книги"""
-        
+        """Находит/скачивает обложку для книги (с кэшированием)"""
+        cache_key = id(book)
+        if cache_key in self._thumbnail_cache:
+            return self._thumbnail_cache[cache_key]
+
         if not book.cover:
+            self._thumbnail_cache[cache_key] = None
             return None
 
-        # 1. Если это URL
-        if book.cover.startswith(('http://', 'https://')):
-            # Автоматически исправляем ссылки GitHub blob на raw для корректного отображения
-            if "github.com" in book.cover and "/blob/" in book.cover:
-                return book.cover.replace("/blob/", "/raw/")
-            return book.cover
-            
-        # 2. Проверяем локальный путь (абсолютный или относительный)
+        # 1. Локальный файл — существует
         if os.path.exists(book.cover):
+            self._thumbnail_cache[cache_key] = book.cover
             return book.cover
-            
-        # 3. Проверяем в папке thumbnails по имени файла
+
+        # 2. Локальный файл в data/thumbnails/
         filename = os.path.basename(book.cover)
         thumbs_path = os.path.join(self.data_path, "thumbnails", filename)
+
+        # 3. URL — скачиваем и сохраняем локально
+        if book.cover.startswith(('http://', 'https://')):
+            raw_url = book.cover.replace("/blob/", "/raw/") if "github.com" in book.cover else book.cover
+
+            # Если уже скачан — используем локальную копию
+            if os.path.exists(thumbs_path):
+                self._thumbnail_cache[cache_key] = thumbs_path
+                return thumbs_path
+
+            # Скачиваем в фоне
+            try:
+                os.makedirs(os.path.dirname(thumbs_path), exist_ok=True)
+                urllib.request.urlretrieve(raw_url, thumbs_path)
+                self._thumbnail_cache[cache_key] = thumbs_path
+                return thumbs_path
+            except Exception as e:
+                print(f"Ошибка скачивания обложки: {e}")
+                # fallback — возвращаем raw URL, Flet скачает сам
+                self._thumbnail_cache[cache_key] = raw_url
+                return raw_url
+
+        # 4. Существующий путь в data/thumbnails/ (если не URL)
         if os.path.exists(thumbs_path):
+            self._thumbnail_cache[cache_key] = thumbs_path
             return thumbs_path
-            
+
+        self._thumbnail_cache[cache_key] = None
         return None
 
-    def load_authors(self) -> List[Author]:
-        """Загружает авторов через AuthorManager"""
-        return self.author_manager.load_authors()
+    def load_authors(self, force: bool = False) -> List[Author]:
+        """Загружает авторов с кэшированием."""
+        if self._authors_cache is not None and not force:
+            return self._authors_cache
+        self._authors_cache = self.author_manager.load_authors()
+        return self._authors_cache
+
+    def invalidate_authors_cache(self):
+        """Сбрасывает кэш авторов"""
+        self._authors_cache = None
 
     def save_books(self, books: List[Book]):
         """Сохраняет книги в базу данных SQLite"""
@@ -214,9 +274,12 @@ class Storage:
         try:
             with open(f"{self.data_path}/settings.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
-                settings = UserSettings(**data)
-                settings.default_path = self._resolve_download_path(settings.default_path)
-                return settings
+            # Обратная совместимость: старый ключ enable云flare_storage → enable_cloudflare_storage
+            if "enable云flare_storage" in data:
+                data["enable_cloudflare_storage"] = data.pop("enable云flare_storage")
+            settings = UserSettings(**data)
+            settings.default_path = self._resolve_download_path(settings.default_path)
+            return settings
         except FileNotFoundError:
             return UserSettings(default_path=NURBOOKS_DOWNLOADS_PATH)
         except Exception as e:

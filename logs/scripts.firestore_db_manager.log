@@ -1,0 +1,24 @@
+2026-06-27 01:12:04 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:12:04 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:12:36 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:12:36 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:13:05 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:13:05 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:13:06 | INFO     | scripts.firestore_db_manager | save_authors:474 | Сохранено 8 авторов в Firestore
+2026-06-27 01:13:16 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:13:16 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:19:09 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:19:09 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 01:19:11 | INFO     | scripts.firestore_db_manager | save_authors:474 | Сохранено 18 авторов в Firestore
+2026-06-27 09:02:37 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 09:02:37 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 09:02:37 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 09:02:39 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 09:08:49 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 09:08:49 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 09:47:56 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 09:47:56 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 10:03:31 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 10:03:31 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 10:48:00 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован
+2026-06-27 10:48:00 | INFO     | scripts.firestore_db_manager | _initialize_firestore:58 | FirestoreBookManager инициализирован

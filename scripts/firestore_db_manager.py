@@ -6,7 +6,7 @@
 """
 
 from typing import Optional, List, Dict, Any
-from src.core.models import Book, Bookmark
+from src.core.models import Book, Bookmark, Author
 from src.core.logger import get_logger
 import os
 
@@ -35,7 +35,8 @@ class FirestoreBookManager:
         try:
             import firebase_admin
             from firebase_admin import credentials, firestore
-            
+            from src.config import FirebaseConfig
+
             service_account_path = "serviceAccountKey.json"
             if not os.path.exists(service_account_path):
                 from src.config import BASE_PATH
@@ -44,45 +45,21 @@ class FirestoreBookManager:
                     logger.warning("Firestore не инициализирован: serviceAccountKey.json не найден")
                     self._initialized = False
                     return
-            
+
             if not firebase_admin._DEFAULT_APP_NAME in firebase_admin._apps:
                 cred = credentials.Certificate(service_account_path)
                 firebase_admin.initialize_app(cred, {
-                    'projectId': "nurbooks-12345"
+                    'projectId': FirebaseConfig.PROJECT_ID
                 })
                 logger.info("Firebase App инициализирован успешно")
-            
+
             self._db = firestore.client()
             self._initialized = True
             logger.info("FirestoreBookManager инициализирован")
-            
+
         except firebase_admin.exceptions.AlreadyExistsError:
             logger.info("Firebase App уже инициализирован, повторное использование")
             self._db = firestore.client()
-            self._initialized = True
-        except Exception as e:
-            logger.error(f"Ошибка инициализации Firebase: {e}", exc_info=True)
-            self._initialized = False
-                    return
-            
-            # Проверяем, не инициализировано ли уже приложение
-            if not firebase_admin._DEFAULT_APP_NAME in firebase_admin._apps:
-                cred = credentials.Certificate(service_account_path)
-                firebase_admin.initialize_app(cred, {
-                    'projectId': "nurbooks-12345",  # TODO: FETCH FROM CONFIG
-                    'storageBucket': "nurbooks-12345.appspot.com"  # TODO: FETCH FROM CONFIG
-                })
-                logger.info("Firebase App инициализирован успешно")
-            
-            self._db = firestore.client()
-            self._storage = storage.bucket()
-            self._initialized = True
-            logger.info("FirestoreBookManager инициализирован")
-            
-        except firebase_admin.exceptions.AlreadyExistsError:
-            logger.info("Firebase App уже инициализирован, повторное использование")
-            self._db = firestore.client()
-            self._storage = storage.bucket()
             self._initialized = True
         except Exception as e:
             logger.error(f"Ошибка инициализации Firebase: {e}", exc_info=True)
@@ -432,6 +409,74 @@ class FirestoreBookManager:
             logger.error(f"Ошибка получения закладок: {e}", exc_info=True)
             return []
     
+    # ========== Authors ==========
+
+    def get_all_authors(self) -> List[Author]:
+        """
+        Получает всех авторов из Firestore.
+        """
+        if not self._initialized:
+            return []
+        try:
+            authors = []
+            docs = self._db.collection('authors').order_by('id').stream()
+            for doc in docs:
+                data = doc.to_dict()
+                author = Author(
+                    id=data.get('id', 0),
+                    name=data.get('name', ''),
+                    bio=data.get('bio', ''),
+                    books=data.get('books', [])
+                )
+                authors.append(author)
+            return authors
+        except Exception as e:
+            logger.error(f"Ошибка получения авторов: {e}", exc_info=True)
+            return []
+
+    def add_author(self, author: Author) -> bool:
+        """
+        Добавляет автора в Firestore.
+        """
+        if not self._initialized:
+            return False
+        try:
+            doc_ref = self._db.collection('authors').document(str(author.id))
+            doc_ref.set({
+                'id': author.id,
+                'name': author.name,
+                'bio': author.bio,
+                'books': author.books
+            })
+            logger.info(f"Автор '{author.name}' добавлен в Firestore")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка добавления автора: {e}", exc_info=True)
+            return False
+
+    def save_authors(self, authors: List[Author]) -> bool:
+        """
+        Сохраняет всех авторов в Firestore (перезаписывает коллекцию).
+        """
+        if not self._initialized:
+            return False
+        try:
+            batch = self._db.batch()
+            for author in authors:
+                doc_ref = self._db.collection('authors').document(str(author.id))
+                batch.set(doc_ref, {
+                    'id': author.id,
+                    'name': author.name,
+                    'bio': author.bio,
+                    'books': author.books
+                })
+            batch.commit()
+            logger.info(f"Сохранено {len(authors)} авторов в Firestore")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка сохранения авторов: {e}", exc_info=True)
+            return False
+
     # ========== Private Methods ==========
     
     def _doc_to_book(self, data: Dict[str, Any]) -> Book:

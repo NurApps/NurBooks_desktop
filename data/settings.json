@@ -1,5 +1,5 @@
 {
-  "default_path": "downloads",
+  "default_path": "C:\\Users\\Huawei\\Downloads\\downloads-nurbooks",
   "theme": "light",
   "language": "ru",
   "pdf_reader": "ask",
@@ -10,7 +10,7 @@
   "cloudflare_api_token": "",
   "cloudflare_account_id": "",
   "cloudflare_bucket_name": "",
-  "enable云flare_storage": false,
+  "enable_cloudflare_storage": false,
   "require_auth": false,
   "jwt_secret_key": ""
 }

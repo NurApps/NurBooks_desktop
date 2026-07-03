@@ -53,6 +53,9 @@ class PDFReaderPage:
         self.downloader = downloader or Downloader()
         self.bookmarks = bookmarks or []
         self.go_to_page = go_to_page
+        # Регистрируем Ctrl+F
+        self._prev_keyboard = getattr(page, 'on_keyboard_event', None)
+        page.on_keyboard_event = self._handle_keyboard
 
         # Состояние
         self.pdf_doc = None
@@ -66,9 +69,44 @@ class PDFReaderPage:
         self._render_lock = threading.Lock()
         self._stop_preload = threading.Event()
 
+        # Для swipe-детекции
+        self._drag_start_x = 0
+        self._search_timer = None
+
         # Создаём временную директорию
         os.makedirs(TEMP_DIR, exist_ok=True)
         self.render_dir = tempfile.mkdtemp(dir=TEMP_DIR) or ""
+
+        # Поиск по тексту
+        self._search_results = []  # [(page_num, rects), ...]
+        self._search_match_index = 0
+        self._search_query = ""
+        self._search_is_loading = False
+
+        self.search_field = ft.TextField(
+            hint_text="Поиск по тексту...",
+            height=35, text_size=13,
+            expand=True,
+            on_submit=lambda e: self._do_search(e),
+            on_change=lambda e: self._on_search_change(),
+        )
+        self.search_match_label = ft.Text("", size=12)
+        self.search_panel = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.icons.SEARCH, size=18),
+                self.search_field,
+                self.search_match_label,
+                ft.IconButton(icon=ft.icons.NAVIGATE_BEFORE, icon_size=18,
+                              tooltip="Предыдущее совпадение", on_click=self._prev_match),
+                ft.IconButton(icon=ft.icons.NAVIGATE_NEXT, icon_size=18,
+                              tooltip="Следующее совпадение", on_click=self._next_match),
+                ft.IconButton(icon=ft.icons.CLOSE, icon_size=18,
+                              tooltip="Закрыть поиск", on_click=self._close_search),
+            ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=ft.padding.symmetric(horizontal=10, vertical=4),
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            visible=False,
+        )
 
         # UI - ИЗОБРАЖЕНИЕ (самое важное!)
         self.page_image = ft.Image(
@@ -159,6 +197,7 @@ class PDFReaderPage:
             content=ft.Row([
                 ft.IconButton(icon=ft.icons.ARROW_BACK, on_click=self._go_back, tooltip="Назад"),
                 ft.Text(self.book.title, size=16, weight=ft.FontWeight.BOLD, expand=True, overflow=ft.TextOverflow.ELLIPSIS),
+                ft.IconButton(icon=ft.icons.SEARCH, on_click=self._toggle_search, tooltip="Поиск (Ctrl+F)"),
                 ft.IconButton(icon=ft.icons.STAR_BORDER, on_click=self._add_bookmark, tooltip="Закладка"),
                 ft.IconButton(icon=ft.icons.ZOOM_OUT, on_click=self._zoom_out, tooltip="Уменьшить"),
                 self.zoom_label,
@@ -168,17 +207,16 @@ class PDFReaderPage:
             bgcolor=ft.colors.SURFACE_VARIANT,
         )
 
-        scrollable_content = ft.Row(
-            [
-                ft.Column(
-                    [self.image_stack],
-                    scroll=ft.ScrollMode.AUTO,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                )
-            ],
-            scroll=ft.ScrollMode.AUTO,
-            alignment=ft.MainAxisAlignment.CENTER,
-            expand=True,
+        scrollable_content = ft.GestureDetector(
+            content=ft.Column(
+                [self.image_stack],
+                scroll=ft.ScrollMode.AUTO,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                expand=True,
+                on_scroll=self._on_scroll,
+            ),
+            on_horizontal_drag_start=self._on_drag_start,
+            on_horizontal_drag_end=self._on_drag_end,
         )
 
         viewer = ft.Container(
@@ -208,7 +246,7 @@ class PDFReaderPage:
             bgcolor=ft.colors.SURFACE_VARIANT,
         )
 
-        return ft.Column([top_bar, viewer, bottom_bar], expand=True, spacing=0)
+        return ft.Column([self.search_panel, top_bar, viewer, bottom_bar], expand=True, spacing=0)
 
     def _show_loading(self, text: str = "Загрузка..."):
         """Показывает индикатор загрузки"""
@@ -275,6 +313,14 @@ class PDFReaderPage:
             print(f"[PDF] Показана страница {self.current_page + 1}")
         except Exception as e:
             print(f"[PDF] Ошибка показа: {e}")
+
+    def _handle_keyboard(self, e: ft.KeyboardEvent):
+        if e.key == "F" and e.ctrl:
+            self._toggle_search()
+        elif e.key == "Arrow Left" or e.key == "ArrowLeft":
+            self._prev_page(e)
+        elif e.key == "Arrow Right" or e.key == "ArrowRight":
+            self._next_page(e)
 
     def _load_pdf(self):
         """Загружает PDF в фоне"""
@@ -439,6 +485,19 @@ class PDFReaderPage:
             threading.Thread(target=self._show_page, args=(self.current_page + 1,), daemon=True).start()
             threading.Thread(target=self._preload_pages, daemon=True).start()
 
+    def _on_scroll(self, e: ft.OnScrollEvent):
+        if e.event_type == "user" and e.scroll_delta:
+            if e.direction == "left" and abs(e.scroll_delta) > 30:
+                self._next_page(None)
+            elif e.direction == "right" and abs(e.scroll_delta) > 30:
+                self._prev_page(None)
+
+    def _on_drag_start(self, e):
+        pass
+
+    def _on_drag_end(self, e):
+        pass
+
     def _zoom_in(self, e):
         if self.zoom < 3.0:
             self.zoom = round(self.zoom + 0.25, 2)
@@ -502,6 +561,9 @@ class PDFReaderPage:
         """Возврат"""
         self._stop_preload.set()
         self._save_progress()
+        self._close_search()
+        # Восстанавливаем предыдущий обработчик клавиатуры
+        self.page.on_keyboard_event = self._prev_keyboard
         if self.pdf_doc:
             try:
                 self.pdf_doc.close()
@@ -569,6 +631,105 @@ class PDFReaderPage:
             threading.Thread(target=self._preload_pages, daemon=True).start()
         except ValueError:
             self.page_input.value = str(self.current_page + 1)
+            self.page.update()
+
+    def _on_search_change(self):
+        if self._search_timer:
+            self._search_timer.cancel()
+        self._search_timer = threading.Timer(0.4, self._do_search)
+        self._search_timer.start()
+
+    def _toggle_search(self, e=None):
+        self.search_panel.visible = not self.search_panel.visible
+        if self.search_panel.visible:
+            self.search_field.focus()
+        else:
+            self._close_search(e)
+        self.page.update()
+
+    def _do_search(self, e=None):
+        q = self.search_field.value.strip() if self.search_field.value else ""
+        if not q or self._search_is_loading:
+            if not q:
+                self._search_results = []
+                self.search_match_label.value = ""
+                self.page.update()
+            return
+
+        self._search_query = q.lower()
+        self._search_is_loading = True
+        self.search_match_label.value = "Поиск..."
+        self.page.update()
+
+        threading.Thread(target=self._search_worker, daemon=True).start()
+
+    def _search_worker(self):
+        results = []
+        if not self.pdf_doc:
+            self._search_is_loading = False
+            return
+
+        for pg in range(self.total_pages):
+            try:
+                page = self.pdf_doc[pg]
+                text_method = getattr(page, 'get_text', None) or getattr(page, 'getText', None)
+                if not text_method:
+                    continue
+                text = text_method("text") or ""
+                if self._search_query in text.lower():
+                    found = page.search_for(self._search_query, hit_max=50)
+                    results.append((pg, found))
+            except Exception:
+                continue
+
+        self._search_results = results
+        self._search_match_index = 0
+        self._search_is_loading = False
+
+        total = sum(len(r[1]) for r in results)
+        pages = len(results)
+        self.search_match_label.value = f"{total} совп. на {pages} стр." if total else "Нет совпадений"
+
+        if results:
+            target_page = results[0][0]
+            if target_page != self.current_page:
+                self._show_loading("Переход к результату...")
+                threading.Thread(target=self._show_page, args=(target_page,), daemon=True).start()
+        self.page.update()
+
+    def _next_match(self, e):
+        if not self._search_results:
+            return
+        self._search_match_index += 1
+        if self._search_match_index >= len(self._search_results):
+            self._search_match_index = 0
+        target_page = self._search_results[self._search_match_index][0]
+        if target_page != self.current_page:
+            threading.Thread(target=self._show_page, args=(target_page,), daemon=True).start()
+        self.page.update()
+
+    def _prev_match(self, e):
+        if not self._search_results:
+            return
+        self._search_match_index -= 1
+        if self._search_match_index < 0:
+            self._search_match_index = len(self._search_results) - 1
+        target_page = self._search_results[self._search_match_index][0]
+        if target_page != self.current_page:
+            threading.Thread(target=self._show_page, args=(target_page,), daemon=True).start()
+        self.page.update()
+
+    def _close_search(self, e=None):
+        self.search_panel.visible = False
+        self._search_results = []
+        self._search_query = ""
+        self._search_is_loading = False
+        if self._search_timer:
+            self._search_timer.cancel()
+            self._search_timer = None
+        self.search_field.value = ""
+        self.search_match_label.value = ""
+        if self.page:
             self.page.update()
 
     def build(self) -> ft.Control:

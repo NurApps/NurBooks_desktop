@@ -64,3 +64,50 @@ NameError: name 'FirebaseConfig' is not defined. Did you mean: 'FirebaseClient'?
 2026-06-03 15:53:24 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
 2026-06-03 16:02:16 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
 2026-06-03 16:02:16 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:12:04 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:12:04 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:12:16 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:12:16 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:12:36 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:12:36 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:12:54 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:12:54 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:13:05 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:13:05 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:13:16 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:13:16 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:13:28 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:13:28 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:16:43 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:16:43 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 01:16:43 | CRITICAL | src.core.firebase_client | handle_exception:95 | Необработанное исключение
+Traceback (most recent call last):
+  File "<string>", line 22, in <module>
+  File "C:\Users\Huawei\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1251.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 2: character maps to <undefined>
+2026-06-27 01:19:09 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 01:19:09 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 09:02:37 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 09:02:37 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 09:08:47 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 09:08:47 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 09:47:54 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 09:47:54 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 10:01:26 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 10:01:26 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 10:02:53 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 10:02:53 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 10:02:53 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 10:02:53 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 10:47:42 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 10:47:42 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 19:50:05 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 19:50:05 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 19:52:58 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 19:52:58 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 19:57:36 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 19:57:36 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно
+2026-06-27 20:04:55 | INFO     | src.core.firebase_client | _initialize_firebase:38 | Firebase App инициализирован
+2026-06-27 20:04:55 | INFO     | src.core.firebase_client | _initialize_firebase:42 | Firebase Client инициализирован успешно

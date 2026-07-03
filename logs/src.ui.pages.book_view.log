@@ -85,3 +85,7 @@ ModuleNotFoundError: No module named 'src.ui.pages.auth_page'
 2026-06-02 16:41:17 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=20 (общий счётчик: 2)
 2026-06-02 17:26:47 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=1 (общий счётчик: 5)
 2026-06-03 10:20:40 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=19 (общий счётчик: 3)
+2026-06-27 10:04:58 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=17 (общий счётчик: 2)
+2026-06-27 10:47:55 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=2 (общий счётчик: 2)
+2026-06-27 19:50:56 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=15 (общий счётчик: 5)
+2026-06-27 20:05:33 | INFO     | src.ui.pages.book_view | _record_book_view:88 | Записан просмотр книги ID=15 (общий счётчик: 8)
