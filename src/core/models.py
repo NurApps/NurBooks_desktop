@@ -48,6 +48,10 @@ class UserSettings:
     cloudflare_bucket_name: str = ""
     enable_cloudflare_storage: bool = False
     
+    # Обновления
+    auto_update: bool = False
+    beta_updates: bool = False
+    
     # Аутентификация и приватность
     require_auth: bool = False
     jwt_secret_key: str = ""

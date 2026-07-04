@@ -73,6 +73,22 @@ class SettingsPage:
             value=getattr(self.settings, "background_notifications", True)
         )
 
+        # Обновления
+        self.auto_update_switch = ft.Switch(
+            label="Автоматически проверять обновления",
+            value=getattr(self.settings, "auto_update", False),
+        )
+        self.beta_updates_switch = ft.Switch(
+            label="Участвовать в бета-тестировании",
+            value=getattr(self.settings, "beta_updates", False),
+        )
+        self._update_status_text = ft.Text("", size=12, color=ft.colors.GREY_700)
+        self._check_update_btn = ft.ElevatedButton(
+            "Проверить обновления",
+            icon=ft.icons.UPDATE,
+            on_click=self._on_check_updates,
+        )
+
         # Элементы для настроек облака Firebase
         self.cloudflare_api_token_field = ft.TextField(
             label="Cloudflare API Token",
@@ -173,6 +189,26 @@ class SettingsPage:
                         border_radius=10,
                         margin=ft.margin.symmetric(horizontal=20, vertical=10),
                     ),
+                    # Обновления
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text("Обновления", size=20, weight=ft.FontWeight.BOLD),
+                                ft.Divider(),
+                                self.auto_update_switch,
+                                self.beta_updates_switch,
+                                ft.Row(
+                                    [self._check_update_btn, self._update_status_text],
+                                    spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                ),
+                            ],
+                            spacing=10,
+                        ),
+                        padding=20,
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        border_radius=10,
+                        margin=ft.margin.symmetric(horizontal=20, vertical=10),
+                    ),
                     # Кэш и данные
                     ft.Container(
                         content=ft.Column(
@@ -257,6 +293,79 @@ class SettingsPage:
             ),
             expand=True,
         )
+
+    def _on_check_updates(self, e):
+        """Проверяет обновления на GitHub."""
+        from src.core.updater import check_latest, is_newer
+        from src.config import APP_VERSION as CURR_VER
+
+        self._check_update_btn.disabled = True
+        self._update_status_text.value = "Проверка..."
+        self._update_status_text.color = ft.colors.GREY_700
+        self.page.update()
+
+        def _done(info):
+            self._check_update_btn.disabled = False
+            if info and is_newer(CURR_VER, info.version):
+                self._update_status_text.value = f"Доступна версия {info.version}!"
+                self._update_status_text.color = ft.colors.GREEN
+                self.page.update()
+
+                dlg = ft.AlertDialog(
+                    title=ft.Text("Доступно обновление"),
+                    content=ft.Text(
+                        f"Версия {info.version} доступна для скачивания.\n\n"
+                        f"{info.body[:500] if info.body else ''}"
+                    ),
+                    actions=[
+                        ft.TextButton("Позже", on_click=lambda _, d=dlg: self.page.close(d)),
+                        ft.ElevatedButton("Скачать", on_click=lambda _, d=dlg: self._do_update(info, d)),
+                    ],
+                )
+                self.page.open(dlg)
+            elif info:
+                self._update_status_text.value = f"Новая версия: {info.version}"
+                self._update_status_text.color = ft.colors.GREEN
+                self.page.update()
+            else:
+                self._update_status_text.value = "У вас актуальная версия"
+                self._update_status_text.color = ft.colors.GREY_700
+                self.page.update()
+
+        def _bg():
+            try:
+                info = check_latest(beta=self.beta_updates_switch.value)
+                _done(info)
+            except Exception:
+                _done(None)
+
+        import threading
+        threading.Thread(target=_bg, daemon=True).start()
+
+    def _do_update(self, info, dlg):
+        """Скачивает и применяет обновление."""
+        import os
+        import tempfile
+        import threading
+        from src.core.updater import download_update, apply_update
+
+        self.page.close(dlg)
+        self._update_status_text.value = "Скачивание..."
+        self._check_update_btn.disabled = True
+        self.page.update()
+
+        def _dl():
+            try:
+                dest = os.path.join(tempfile.gettempdir(), f"NurBooks_{info.version}.exe")
+                download_update(info.download_url, dest)
+                self._update_status_text.value = "Скачано! Запуск..."
+                self.page.update()
+                apply_update(dest)
+            except Exception as ex:
+                self._update_status_text.value = f"Ошибка: {ex}"
+                self.page.update()
+
+        threading.Thread(target=_dl, daemon=True).start()
 
     def _get_downloaded_size(self) -> str:
         """Получает размер скачанных файлов"""
@@ -367,6 +476,8 @@ class SettingsPage:
             self.settings.sound_notifications = self.sound_notifications_switch.value if self.sound_notifications_switch.value is not None else False
             self.settings.update_notifications = self.update_notifications_switch.value
             self.settings.background_notifications = self.background_notifications_switch.value if self.background_notifications_switch.value is not None else True
+            self.settings.auto_update = self.auto_update_switch.value
+            self.settings.beta_updates = self.beta_updates_switch.value
 
             self.storage.save_settings(self.settings)
             if self.notification_manager and hasattr(self.notification_manager, "set_sound_enabled"):
