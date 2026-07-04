@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "NurBooks"
-APP_VERSION = "1.3.1 Beta"
+APP_VERSION = "1.3.5  Beta"
 APP_DESCRIPTION = "Электронная исламская библиотека от NurApps."
 DEVELOPERS = ["Salikh Suyundikov", "Daniyal Kislicky"]
 TESTERS = ["Mukhammad Odilov"]
