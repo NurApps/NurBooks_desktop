@@ -35,7 +35,6 @@ class Storage:
         self.ensure_directories()
         self.database = Database()
         self.author_manager = AuthorManager()
-        self.db_path = os.path.join(self.data_path, "books.db")
 
         # Кэш в памяти
         self._books_cache = None
