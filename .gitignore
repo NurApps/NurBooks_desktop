@@ -8,3 +8,10 @@ __pycache__/
 .ruff_cache/
 .venv
 .vscode/
+
+# Персональные данные (не синхронизировать между устройствами)
+data/notifications.json
+data/settings.json
+data/favorites.json
+data/favorite_books.json
+data/saved_books.json

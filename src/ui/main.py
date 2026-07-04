@@ -25,17 +25,7 @@ from src.core.firebase_client import firebase_client
 from src.config import APP_NAME, APP_VERSION
 
 def resource_path(relative_path):
-    """ Получение правильного пути к ресурсам """
-    try:
-        # Путь к ресурсам в PyInstaller
-        base_path = getattr(sys, '_MEIPASS', None)
-        if base_path is None:
-            raise AttributeError("sys._MEIPASS not available")
-
-    except Exception:
-        # Путь к ресурсам в исходном коде
-        base_path = os.path.abspath(".")
-
+    base_path = getattr(sys, '_MEIPASS', None) or os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 class NurBooksApp:  
     def __init__(self, page: ft.Page):
@@ -387,11 +377,6 @@ class NurBooksApp:
     def _update_cart_badge(self):
         """Обновляет бейдж корзины"""
         cart_count = len(self.cart_widget.get_all_books())
-        # Этот метод устарел, так как он обновлял бейдж уведомлений.
-        # Вместо этого, используйте _update_badge_in_container для корзины.
-        # self._update_badge_in_container(self.top_app_bar, cart_count) # Это неверно
-    
-        # Ищем и обновляем бейдж корзины
         if hasattr(self, 'top_app_bar') and hasattr(self.top_app_bar, 'content'):
             self._update_cart_badge_in_container(self.top_app_bar, cart_count)
 
