@@ -41,6 +41,23 @@ EMAIL_SMTP_PORT = 587
 EMAIL_ADDRESS = ""  
 EMAIL_PASSWORD = "" 
 
+def _resolve_service_account_key():
+    """Ищет serviceAccountKey.json: рядом с EXE, в _MEIPASS, в CWD"""
+    candidates = []
+    if getattr(sys, 'frozen', False):
+        candidates.append(os.path.join(os.path.dirname(sys.executable), "serviceAccountKey.json"))
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            candidates.append(os.path.join(meipass, "serviceAccountKey.json"))
+    candidates.append(os.path.join(BASE_PATH, "serviceAccountKey.json"))
+    candidates.append("serviceAccountKey.json")
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return candidates[-1]
+
+SERVICE_ACCOUNT_KEY_PATH = _resolve_service_account_key()
+
 # Настройки Firebase
 class FirebaseConfig:
     """Конфигурация Firebase"""
@@ -49,7 +66,7 @@ class FirebaseConfig:
     AUTH_DOMAIN = "nurbooks-3b694.firebaseapp.com"
     MESSAGING_SENDER_ID = "9086132352"
     APP_ID = "1:9086132352:web:fbed7cfafa2df0d4a20665"
-    SERVICE_ACCOUNT_KEY_PATH = "serviceAccountKey.json"
+    SERVICE_ACCOUNT_KEY_PATH = SERVICE_ACCOUNT_KEY_PATH
     
     @classmethod
     def to_dict(cls):
@@ -65,7 +82,6 @@ class FirebaseConfig:
     @classmethod
     def is_configured(cls):
         """Проверяет, настроен ли Firebase"""
-        import os
         return (cls.API_KEY != "AIzaSyXXXXXXXXXXXX" and 
                 os.path.exists(cls.SERVICE_ACCOUNT_KEY_PATH))
 
