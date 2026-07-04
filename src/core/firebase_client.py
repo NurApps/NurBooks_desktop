@@ -244,6 +244,150 @@ class FirebaseClient:
             logger.error(f"Ошибка получения закладок: {e}", exc_info=True)
             return []
     
+    def delete_bookmark(self, bookmark_id) -> bool:
+        """Удаляет закладку из Firestore"""
+        if not self._initialized or not self._db:
+            return False
+        try:
+            self._db.collection('bookmarks').document(str(bookmark_id)).delete()
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка удаления закладки {bookmark_id}: {e}", exc_info=True)
+            return False
+    
+    def get_all_bookmarks_with_books(self) -> List:
+        """Получает все закладки с книгами из Firestore"""
+        if not self._initialized or not self._db:
+            return []
+        try:
+            result = []
+            books_cache = {}
+            for doc in self._db.collection('bookmarks').order_by('timestamp', direction='DESCENDING').stream():
+                data = doc.to_dict()
+                bookmark = Bookmark(
+                    id=data.get('id', 0),
+                    book_id=data.get('bookId', 0),
+                    page_number=data.get('page', 0),
+                    timestamp=data.get('timestamp', '')
+                )
+                bid = data.get('bookId')
+                if bid not in books_cache:
+                    books_cache[bid] = self.get_book_by_id(bid)
+                book = books_cache.get(bid)
+                if book:
+                    result.append((bookmark, book))
+            return result
+        except Exception as e:
+            logger.error(f"Ошибка получения закладок с книгами: {e}", exc_info=True)
+            return []
+    
+    # ============= Reading Progress =============
+    
+    def save_reading_progress(self, book_id: int, page_number: int) -> bool:
+        """Сохраняет прогресс чтения в Firestore"""
+        if not self._initialized or not self._db:
+            return False
+        try:
+            from datetime import datetime
+            self._db.collection('reading_progress').document(str(book_id)).set({
+                'bookId': book_id,
+                'page': page_number,
+                'timestamp': datetime.now().isoformat()
+            })
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка сохранения прогресса: {e}", exc_info=True)
+            return False
+    
+    def get_reading_progress(self, book_id: int) -> int:
+        """Получает прогресс чтения из Firestore"""
+        if not self._initialized or not self._db:
+            return 0
+        try:
+            doc = self._db.collection('reading_progress').document(str(book_id)).get()
+            if doc.exists:
+                return doc.to_dict().get('page', 0)
+            return 0
+        except Exception as e:
+            logger.error(f"Ошибка получения прогресса: {e}", exc_info=True)
+            return 0
+    
+    def get_all_reading_progress(self) -> dict:
+        """Возвращает {book_id: page_number} для всех книг с прогрессом"""
+        if not self._initialized or not self._db:
+            return {}
+        try:
+            result = {}
+            for doc in self._db.collection('reading_progress').order_by('timestamp', direction='DESCENDING').stream():
+                data = doc.to_dict()
+                result[data.get('bookId')] = data.get('page', 0)
+            return result
+        except Exception as e:
+            logger.error(f"Ошибка получения всего прогресса: {e}", exc_info=True)
+            return {}
+    
+    # ============= Book CRUD =============
+    
+    def add_book(self, book: Book) -> str:
+        """Добавляет книгу в Firestore"""
+        if not self._initialized or not self._db:
+            return "error"
+        try:
+            if self.get_book_by_id(book.id):
+                return "id_exists"
+            self._db.collection('books').document(str(book.id)).set(self._book_to_doc(book))
+            return "success"
+        except Exception as e:
+            logger.error(f"Ошибка добавления книги: {e}", exc_info=True)
+            return "error"
+    
+    def update_book(self, book: Book) -> bool:
+        """Обновляет книгу в Firestore"""
+        if not self._initialized or not self._db:
+            return False
+        try:
+            self._db.collection('books').document(str(book.id)).set(self._book_to_doc(book))
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка обновления книги: {e}", exc_info=True)
+            return False
+    
+    def delete_book(self, book_id: int) -> bool:
+        """Удаляет книгу из Firestore"""
+        if not self._initialized or not self._db:
+            return False
+        try:
+            self._db.collection('books').document(str(book_id)).delete()
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка удаления книги: {e}", exc_info=True)
+            return False
+    
+    def clear_books(self) -> bool:
+        """Очищает все книги из Firestore"""
+        if not self._initialized or not self._db:
+            return False
+        try:
+            for doc in self._db.collection('books').stream():
+                doc.reference.delete()
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка очистки книг: {e}", exc_info=True)
+            return False
+    
+    def get_book_by_pdf(self, pdf_path: str):
+        """Ищет книгу по пути PDF в Firestore"""
+        if not self._initialized or not self._db:
+            return None
+        try:
+            docs = self._db.collection('books').where('pdf', '==', pdf_path).limit(1).stream()
+            for doc in docs:
+                return self._doc_to_book(doc.to_dict())
+            return None
+        except Exception as e:
+            logger.error(f"Ошибка поиска книги по PDF: {e}", exc_info=True)
+            return None
+    
     # ============= Analytics Events =============
 
     def log_analytics_event(self, event_type: str, book_id: int, metadata: Dict[str, Any] = None) -> bool:
