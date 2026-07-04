@@ -202,6 +202,8 @@ class PDFReaderPage:
                 ft.IconButton(icon=ft.icons.ZOOM_OUT, on_click=self._zoom_out, tooltip="Уменьшить"),
                 self.zoom_label,
                 ft.IconButton(icon=ft.icons.ZOOM_IN, on_click=self._zoom_in, tooltip="Увеличить"),
+                ft.IconButton(icon=ft.icons.SAVE_ALT, on_click=self._save_page_as_image,
+                              tooltip="Сохранить страницу как изображение"),
             ]),
             padding=10,
             bgcolor=ft.colors.SURFACE_VARIANT,
@@ -556,6 +558,37 @@ class PDFReaderPage:
             except Exception as ex:
                 self._show_error(f"Ошибка скачивания:\n{ex}")
         threading.Thread(target=download, daemon=True).start()
+
+    def _save_page_as_image(self, e):
+        """Сохраняет текущую страницу как PNG в папку загрузок"""
+        if not self.pdf_doc:
+            return
+        def save():
+            try:
+                path = self._render_page(self.current_page)
+                if not path:
+                    raise Exception("Не удалось отрендерить страницу")
+                save_name = f"{self.book.title}_page_{self.current_page + 1}.png"
+                safe_name = "".join(c for c in save_name if c.isalnum() or c in " ._-")
+                save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+                save_path = os.path.join(save_dir, safe_name)
+                import shutil
+                shutil.copy2(path, save_path)
+                self.page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"Страница сохранена: {safe_name}"),
+                    action="OK",
+                    duration=3000,
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+            except Exception as ex:
+                self.page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"Ошибка: {ex}"),
+                    bgcolor=ft.colors.ERROR_CONTAINER,
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+        threading.Thread(target=save, daemon=True).start()
 
     def _go_back(self, e):
         """Возврат"""
