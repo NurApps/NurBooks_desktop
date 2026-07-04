@@ -8,7 +8,7 @@ a = Analysis(
     binaries=[],
     datas=[
     ('assets', 'assets'),
-    ('data', 'data'),
+    ('serviceAccountKey.json', 'serviceAccountKey.json'),
 ],
 
 hiddenimports=[
