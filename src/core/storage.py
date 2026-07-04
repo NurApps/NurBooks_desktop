@@ -1,8 +1,6 @@
 import json
 import os
-import sys
 import time
-import shutil
 import urllib.request
 import threading
 from pathlib import Path
@@ -104,55 +102,7 @@ class Storage:
         return self.download_from_github(book.pdf, filename)
 
     def _extract_initial_data(self):
-        """Распаковывает начальные данные из EXE, если они отсутствуют"""
-        # Работаем только если запущены как EXE
-        if not getattr(sys, 'frozen', False):
-            return
-
-        # Путь к ресурсам внутри EXE (_MEIPASS)
-        # В Python 3.12+ нужно использовать getattr для доступа к _MEIPASS
-        base_internal_path = getattr(sys, '_MEIPASS', None)
-        if base_internal_path is None:
-            return  # Если _MEIPASS недоступен, выходим
-        
-        # 1. Распаковка папки data (база данных, авторы, обложки)
-        internal_data = os.path.join(base_internal_path, "data")
-        
-        # Убрали условие "and not books.db", чтобы проверять содержимое внутри (например, картинки)
-        if os.path.exists(internal_data):
-            try:
-                if not os.path.exists(self.data_path):
-                    shutil.copytree(internal_data, self.data_path)
-                else:
-                    # Если папка data есть, аккуратно дописываем недостающее
-                    
-                    # 1.1 Обложки (thumbnails) - копируем отсутствующие
-                    internal_thumbs = os.path.join(internal_data, "thumbnails")
-                    target_thumbs = os.path.join(self.data_path, "thumbnails")
-                    if os.path.exists(internal_thumbs):
-                        os.makedirs(target_thumbs, exist_ok=True)
-                        for item in os.listdir(internal_thumbs):
-                            s = os.path.join(internal_thumbs, item)
-                            d = os.path.join(target_thumbs, item)
-                            if not os.path.exists(d):
-                                shutil.copy2(s, d)
-
-                    # 1.2 База данных и авторы (копируем ТОЛЬКО если их нет)
-                    for filename in ["books.db", "authors.json"]:
-                        s = os.path.join(internal_data, filename)
-                        d = os.path.join(self.data_path, filename)
-                        if os.path.exists(s) and not os.path.exists(d):
-                            shutil.copy2(s, d)
-            except Exception as e:
-                print(f"Ошибка распаковки data: {e}")
-
-        # 2. Распаковка папки pdfs
-        internal_pdfs = os.path.join(base_internal_path, "pdfs")
-        if os.path.exists(internal_pdfs) and not os.path.exists(self.pdfs_path):
-            try:
-                shutil.copytree(internal_pdfs, self.pdfs_path)
-            except Exception as e:
-                print(f"Ошибка распаковки pdfs: {e}")
+        """Нет начальных данных — всё через Firebase и GitHub"""
 
     def ensure_directories(self):
         """Создает необходимые директории"""
