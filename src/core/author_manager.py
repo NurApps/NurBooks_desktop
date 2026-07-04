@@ -10,27 +10,18 @@ class AuthorManager:
         self.data_path = DEFAULT_DATA_PATH
         self.authors_file_path = os.path.join(self.data_path, "authors.json")
 
-    def _get_firestore_manager(self):
-        """Пытается получить FirestoreBookManager, если Firebase инициализирован"""
+    def load_authors(self) -> List[Author]:
+        """Загружает авторов. Сначала пробует API, затем локальный JSON"""
         try:
             from src.core.firebase_client import firebase_client
             if firebase_client.is_initialized():
-                from scripts.firestore_db_manager import FirestoreBookManager
-                return FirestoreBookManager()
+                data = firebase_client.get_all_authors()
+                if data:
+                    authors = [Author(**a) for a in data]
+                    self.save_authors_local(authors)
+                    return authors
         except Exception:
             pass
-        return None
-
-    def load_authors(self) -> List[Author]:
-        """Загружает авторов. Сначала пробует Firestore, затем локальный JSON"""
-        fs = self._get_firestore_manager()
-        if fs and fs.is_initialized():
-            authors = fs.get_all_authors()
-            if authors:
-                # Синхронизируем локально
-                self.save_authors_local(authors)
-                return authors
-
         return self.load_authors_local()
 
     def load_authors_local(self) -> List[Author]:
@@ -49,11 +40,13 @@ class AuthorManager:
             return []
 
     def save_authors(self, authors: List[Author]):
-        """Сохраняет авторов. Сначала в Firestore (если доступен), затем локально"""
-        fs = self._get_firestore_manager()
-        if fs and fs.is_initialized():
-            fs.save_authors(authors)
-
+        """Сохраняет авторов. Сначала в API, затем локально"""
+        try:
+            from src.core.firebase_client import firebase_client
+            if firebase_client.is_initialized():
+                firebase_client.save_authors([a.to_dict() for a in authors])
+        except Exception:
+            pass
         self.save_authors_local(authors)
 
     def save_authors_local(self, authors: List[Author]):

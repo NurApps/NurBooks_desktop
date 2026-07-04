@@ -5,6 +5,10 @@ import os
 import sys
 from pathlib import Path
 
+# API сервер
+API_BASE_URL = "https://nurbooks-api.up.railway.app"
+API_KEY = ""
+
 APP_NAME = "NurBooks"
 APP_VERSION = "1.3.5  Beta"
 APP_DESCRIPTION = "Электронная исламская библиотека от NurApps."

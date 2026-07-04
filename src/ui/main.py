@@ -127,7 +127,37 @@ class NurBooksApp:
             ], expand=True)
         )
 
+        # Автопроверка обновлений
+        if getattr(self.settings, "auto_update", False):
+            self._check_updates_background()
+
     
+    def _check_updates_background(self):
+        """Проверяет обновление в фоне, если есть — показывает уведомление."""
+        import threading
+        from src.core.updater import check_latest, is_newer
+        from src.config import APP_VERSION as CURR_VER
+
+        def _bg():
+            try:
+                info = check_latest(beta=getattr(self.settings, "beta_updates", False))
+                if info and is_newer(CURR_VER, info.version):
+                    self.page.snack_bar = ft.SnackBar(
+                        content=ft.Text(f"Доступно обновление v{info.version}!"),
+                        action="Скачать",
+                        on_action=lambda _: self._open_updates_settings(),
+                    )
+                    self.page.snack_bar.open = True
+                    self.page.update()
+            except Exception:
+                pass
+
+        threading.Thread(target=_bg, daemon=True).start()
+
+    def _open_updates_settings(self):
+        """Открывает страницу настроек."""
+        self._show_settings_page()
+
     def _on_window_event(self, e):
         """Обработчик событий окна - очищает временные файлы при закрытии"""
         if e.data == "close":
