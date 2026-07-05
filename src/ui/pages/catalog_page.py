@@ -1,6 +1,6 @@
 import flet as ft
 import threading
-from typing import List
+from typing import List, Optional
 from src.core.models import Book
 from src.ui.components.search_bar import SearchBar
 from src.ui.components.filters_panel import FiltersPanel
@@ -14,9 +14,10 @@ class CatalogPage:
         self.filtered_books: List[Book] = books.copy()
         self._search_timer = None
 
-        self.search_bar = SearchBar(on_search=None)
         self.filters_panel = FiltersPanel(on_filter_change=self._on_filter_change)
+        self.search_bar = SearchBar(on_search=None)
         self.search_bar.search_field.on_change = self._on_search_change
+        self.search_bar.search_field.hint_text = "Поиск по названию или автору..."
 
         self._setup_filters()
         self.book_grid = None
@@ -99,34 +100,31 @@ class CatalogPage:
         self.stats_text.value = f"Найдено книг: {len(self.filtered_books)} из {len(self.books)}"
 
     def _create_content(self) -> ft.Control:
-        search_layout = ft.Row(
-            controls=[
-                self.search_bar.search_field,
-                ft.IconButton(icon=ft.icons.SEARCH, tooltip="Найти", on_click=self._apply_filters_and_search),
-            ],
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-
-        self.grid_container = ft.Container(expand=True, margin=ft.margin.only(right=20))
         self.stats_text = ft.Text(
             f"Найдено книг: {len(self.filtered_books)} из {len(self.books)}",
             size=12, color=ft.colors.GREY,
         )
 
+        self.grid_container = ft.Container(expand=True)
+
         return ft.Container(
             content=ft.Column([
                 ft.Container(
-                    content=ft.Column(
-                        [ft.Text("Каталог книг", size=28, weight=ft.FontWeight.BOLD), search_layout],
-                        spacing=10,
-                    ),
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Text("Каталог книг", size=28, weight=ft.FontWeight.BOLD),
+                            ft.Container(expand=True),
+                            self.stats_text,
+                        ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        self.search_bar.search_field,
+                    ], spacing=10),
                     padding=ft.padding.only(left=20, right=20, top=20, bottom=10),
                 ),
                 ft.Row([
-                    ft.Container(content=self.filters_panel.build(), width=250, margin=ft.margin.only(left=20)),
+                    ft.Container(self.filters_panel.build(), width=260),
+                    ft.VerticalDivider(width=1),
                     self.grid_container,
-                ], expand=True),
-                ft.Container(content=self.stats_text, padding=ft.padding.only(left=20, right=20, bottom=10)),
+                ], expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.START),
             ]),
             expand=True,
         )
