@@ -8,7 +8,7 @@ import firebase_service as fb
 
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
 
-app = FastAPI(title="NurBooks API", version="1.0.0")
+app = FastAPI(title="NurBooks API", version="1.3.5 Beta", description="Электронная исламская библиотека от NurApps.")
 
 
 def verify_key(key: str):

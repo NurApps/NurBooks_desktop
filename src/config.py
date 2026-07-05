@@ -5,8 +5,8 @@ import os
 import sys
 from pathlib import Path
 
-# API сервер
-API_BASE_URL = "https://nurbooks-api.up.railway.app"
+# API сервер — заполнить после деплоя на Render
+API_BASE_URL = "https://nurbooks-api.onrender.com"
 API_KEY = ""
 
 APP_NAME = "NurBooks"

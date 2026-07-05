@@ -11,7 +11,7 @@ from src.config import API_BASE_URL, API_KEY as CONFIG_API_KEY
 
 logger = get_logger(__name__)
 
-API_BASE = API_BASE_URL
+API_BASE = API_BASE_URL.rstrip("/")
 API_KEY = CONFIG_API_KEY
 
 
