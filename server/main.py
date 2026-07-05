@@ -11,6 +11,11 @@ API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
 
 app = FastAPI(title="NurBooks API", version="1.3.5 Beta", description="Электронная исламская библиотека от NurApps.")
 
+
+@app.get("/")
+def root():
+    return {"name": "NurBooks API", "version": "1.3.5 Beta", "status": "ok"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
