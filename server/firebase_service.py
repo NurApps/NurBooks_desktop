@@ -1,68 +1,94 @@
 import os
 import json
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from datetime import datetime
 
 FIREBASE_PROJECT_ID = "nurbooks-3b694"
+_firestore = None
+_init_error = None
 
 
 def _init_firebase():
-    import firebase_admin
-    from firebase_admin import credentials, firestore
-    if not firebase_admin._DEFAULT_APP_NAME in firebase_admin._apps:
+    global _firestore, _init_error
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, firestore
+        if firebase_admin._DEFAULT_APP_NAME in firebase_admin._apps:
+            _firestore = firestore.client()
+            return
+
         key_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY_PATH", "serviceAccountKey.json")
         if os.path.exists(key_path):
             cred = credentials.Certificate(key_path)
+            print(f"[Firebase] Using key file: {key_path}", flush=True)
         elif os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON"):
-            cred = credentials.Certificate(json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"]))
+            raw = os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"]
+            cred = credentials.Certificate(json.loads(raw))
+            print("[Firebase] Using FIREBASE_SERVICE_ACCOUNT_JSON env var", flush=True)
         else:
-            raise RuntimeError("No Firebase credentials found (FIREBASE_SERVICE_ACCOUNT_JSON or serviceAccountKey.json)")
+            _init_error = "No Firebase credentials (set FIREBASE_SERVICE_ACCOUNT_JSON)"
+            print(f"[Firebase] ERROR: {_init_error}", flush=True)
+            return
+
         firebase_admin.initialize_app(cred, {"projectId": FIREBASE_PROJECT_ID})
-    return firestore.client()
+        _firestore = firestore.client()
+        _init_error = None
+        print("[Firebase] Initialized successfully", flush=True)
+    except Exception as e:
+        _init_error = str(e)
+        print(f"[Firebase] Init failed: {e}", flush=True)
 
 
-db = _init_firebase()
+def is_ready() -> bool:
+    return _firestore is not None
+
+
+def init_error() -> Optional[str]:
+    return _init_error
+
+
+_init_firebase()
 
 
 def book_doc(book_id: int) -> dict:
-    doc = db.collection("books").document(str(book_id)).get()
+    doc = _firestore.collection("books").document(str(book_id)).get()
     return doc.to_dict() if doc.exists else None
 
 
 def all_books() -> list:
-    return [doc.to_dict() for doc in db.collection("books").order_by("id").stream()]
+    return [doc.to_dict() for doc in _firestore.collection("books").order_by("id").stream()]
 
 
 def add_book(data: dict) -> str:
     bid = data.get("id")
-    if db.collection("books").document(str(bid)).get().exists:
+    if _firestore.collection("books").document(str(bid)).get().exists:
         return "id_exists"
-    db.collection("books").document(str(bid)).set(data)
+    _firestore.collection("books").document(str(bid)).set(data)
     return "success"
 
 
 def update_book(book_id: int, data: dict):
-    db.collection("books").document(str(book_id)).set(data)
+    _firestore.collection("books").document(str(book_id)).set(data)
 
 
 def delete_book(book_id: int):
-    db.collection("books").document(str(book_id)).delete()
+    _firestore.collection("books").document(str(book_id)).delete()
 
 
 def clear_books():
-    for doc in db.collection("books").stream():
+    for doc in _firestore.collection("books").stream():
         doc.reference.delete()
 
 
 def search_books(query: str) -> list:
     results = []
     seen = set()
-    for doc in db.collection("books").where("title", ">=", query).where("title", "<=", query + "z").stream():
+    for doc in _firestore.collection("books").where("title", ">=", query).where("title", "<=", query + "z").stream():
         d = doc.to_dict()
         if d["id"] not in seen:
             results.append(d)
             seen.add(d["id"])
-    for doc in db.collection("books").where("author", ">=", query).where("author", "<=", query + "z").stream():
+    for doc in _firestore.collection("books").where("author", ">=", query).where("author", "<=", query + "z").stream():
         d = doc.to_dict()
         if d["id"] not in seen:
             results.append(d)
@@ -71,7 +97,7 @@ def search_books(query: str) -> list:
 
 
 def get_book_by_pdf(pdf_path: str) -> Optional[dict]:
-    docs = db.collection("books").where("pdf", "==", pdf_path).limit(1).stream()
+    docs = _firestore.collection("books").where("pdf", "==", pdf_path).limit(1).stream()
     for doc in docs:
         return doc.to_dict()
     return None
@@ -79,12 +105,12 @@ def get_book_by_pdf(pdf_path: str) -> Optional[dict]:
 
 def increment_view(book_id: int):
     import firebase_admin
-    db.collection("books").document(str(book_id)).update({"viewCount": firebase_admin.firestore.Increment(1)})
+    _firestore.collection("books").document(str(book_id)).update({"viewCount": firebase_admin.firestore.Increment(1)})
 
 
 def increment_download(book_id: int):
     import firebase_admin
-    db.collection("books").document(str(book_id)).update({"downloadCount": firebase_admin.firestore.Increment(1)})
+    _firestore.collection("books").document(str(book_id)).update({"downloadCount": firebase_admin.firestore.Increment(1)})
 
 
 def book_statistics(book_id: int) -> dict:
@@ -99,21 +125,21 @@ def book_statistics(book_id: int) -> dict:
 # ---- Authors ----
 
 def all_authors() -> list:
-    return [doc.to_dict() for doc in db.collection("authors").order_by("id").stream()]
+    return [doc.to_dict() for doc in _firestore.collection("authors").order_by("id").stream()]
 
 
 def add_author(data: dict) -> str:
     aid = data.get("id")
-    if db.collection("authors").document(str(aid)).get().exists:
+    if _firestore.collection("authors").document(str(aid)).get().exists:
         return "id_exists"
-    db.collection("authors").document(str(aid)).set(data)
+    _firestore.collection("authors").document(str(aid)).set(data)
     return "success"
 
 
 def save_authors(authors_data: list):
-    batch = db.batch()
+    batch = _firestore.batch()
     for data in authors_data:
-        ref = db.collection("authors").document(str(data.get("id")))
+        ref = _firestore.collection("authors").document(str(data.get("id")))
         batch.set(ref, data)
     batch.commit()
 
@@ -121,7 +147,7 @@ def save_authors(authors_data: list):
 # ---- Bookmarks ----
 
 def add_bookmark(data: dict) -> dict:
-    doc_ref = db.collection("bookmarks").document()
+    doc_ref = _firestore.collection("bookmarks").document()
     bookmark = {
         "id": doc_ref.id,
         "bookId": data["bookId"],
@@ -133,17 +159,17 @@ def add_bookmark(data: dict) -> dict:
 
 
 def get_bookmarks_by_book(book_id: int) -> list:
-    docs = db.collection("bookmarks").where("bookId", "==", book_id).order_by("page").stream()
+    docs = _firestore.collection("bookmarks").where("bookId", "==", book_id).order_by("page").stream()
     return [doc.to_dict() for doc in docs]
 
 
 def delete_bookmark(bookmark_id: str):
-    db.collection("bookmarks").document(str(bookmark_id)).delete()
+    _firestore.collection("bookmarks").document(str(bookmark_id)).delete()
 
 
 def all_bookmarks_with_books() -> list:
     result = []
-    docs = db.collection("bookmarks").order_by("timestamp", direction="DESCENDING").stream()
+    docs = _firestore.collection("bookmarks").order_by("timestamp", direction="DESCENDING").stream()
     for doc in docs:
         bm = doc.to_dict()
         book = book_doc(bm.get("bookId"))
@@ -155,7 +181,7 @@ def all_bookmarks_with_books() -> list:
 # ---- Reading Progress ----
 
 def save_reading_progress(book_id: int, page: int):
-    db.collection("reading_progress").document(str(book_id)).set({
+    _firestore.collection("reading_progress").document(str(book_id)).set({
         "bookId": book_id,
         "page": page,
         "timestamp": datetime.now().isoformat(),
@@ -163,13 +189,13 @@ def save_reading_progress(book_id: int, page: int):
 
 
 def get_reading_progress(book_id: int) -> Optional[int]:
-    doc = db.collection("reading_progress").document(str(book_id)).get()
+    doc = _firestore.collection("reading_progress").document(str(book_id)).get()
     return doc.to_dict().get("page") if doc.exists else None
 
 
 def all_reading_progress() -> dict:
     result = {}
-    for doc in db.collection("reading_progress").order_by("timestamp", direction="DESCENDING").stream():
+    for doc in _firestore.collection("reading_progress").order_by("timestamp", direction="DESCENDING").stream():
         d = doc.to_dict()
         result[d["bookId"]] = d.get("page", 0)
     return result
@@ -181,13 +207,13 @@ def log_event(event_type: str, book_id: int, metadata: dict = None):
     event = {"eventType": event_type, "bookId": book_id, "timestamp": datetime.now().isoformat()}
     if metadata:
         event.update(metadata)
-    db.collection("analytics_events").add(event)
+    _firestore.collection("analytics_events").add(event)
 
 
 def get_book_analytics(book_id: int) -> dict:
     views = 0
     downloads = 0
-    for doc in db.collection("analytics_events").where("bookId", "==", book_id).stream():
+    for doc in _firestore.collection("analytics_events").where("bookId", "==", book_id).stream():
         d = doc.to_dict()
         if d.get("eventType") == "view":
             views += 1
