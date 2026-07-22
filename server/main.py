@@ -9,6 +9,11 @@ import firebase_service as fb
 
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
 
+# Отключаем цветной логгер uvicorn (глючит на Render без TTY)
+import logging
+logging.getLogger("uvicorn").handlers.clear()
+logging.getLogger("uvicorn.access").handlers.clear()
+
 app = FastAPI(title="NurBooks API", version="1.3.5 Beta", description="Электронная исламская библиотека от NurApps.")
 
 
