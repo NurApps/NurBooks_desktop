@@ -15,7 +15,7 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-REPO = "salihhhh014/test-app-nurbooks-windows"
+REPO = "NurApps/NurBooks_desktop_beta"
 API_URL = f"https://api.github.com/repos/{REPO}/releases"
 
 
