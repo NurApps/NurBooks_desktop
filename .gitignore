@@ -1,5 +1,6 @@
 .env
 serviceAccount.json
+serviceAccountKey.json
 installer-nurbooks.spec
 books_export.json
 FIREBASE_MIGRATION_PLAN.md
