@@ -1,7 +1,6 @@
-from dataclasses import dataclass, asdict
-from typing import List, Optional
+from dataclasses import asdict, dataclass
 from datetime import datetime
-import json
+
 
 @dataclass
 class Book:
@@ -13,12 +12,12 @@ class Book:
     description: str
     cover: str
     pdf: str
-    file_size: Optional[str] = None
-    pages: Optional[int] = None
+    file_size: str | None = None
+    pages: int | None = None
     copyright_protected: bool = False
     view_count: int = 0
     download_count: int = 0
-    
+
     def to_dict(self):
         return asdict(self)
 
@@ -27,8 +26,8 @@ class Author:
     id: int
     name: str
     bio: str
-    books: List[int]
-    
+    books: list[int]
+
     def to_dict(self):
         return asdict(self)
 
@@ -47,11 +46,11 @@ class UserSettings:
     cloudflare_account_id: str = ""
     cloudflare_bucket_name: str = ""
     enable_cloudflare_storage: bool = False
-    
+
     # Обновления
     auto_update: bool = False
     beta_updates: bool = False
-    
+
     # Аутентификация и приватность
     require_auth: bool = False
     jwt_secret_key: str = ""
@@ -66,7 +65,7 @@ class Notification:
     message: str
     type: str  # success, error, warning, info
     timestamp: datetime
-    
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -83,7 +82,7 @@ class Bookmark:
     book_id: int
     page_number: int
     timestamp: str  # ISO формат даты и времени
-    
+
     def to_dict(self):
         return asdict(self)
 

@@ -1,18 +1,20 @@
+from collections.abc import Callable
+from datetime import datetime
+
 import flet as ft
-from datetime import datetime 
-from src.core.models import Notification 
-from typing import List, Callable, Optional
+
+from src.core.models import Notification
 
 
 class NotificationDetailDialog:
     """Диалоговое окно для детального просмотра уведомления"""
-    
+
     def __init__(self, notification: Notification, on_close: Callable = None, on_delete: Callable = None):
         self.notification = notification
         self.on_close = on_close
         self.on_delete = on_delete
         self.dialog = None
-    
+
     def _get_icon_for_type(self, type: str) -> str:
         """Получить иконку для типа уведомления"""
         icons = {
@@ -22,7 +24,7 @@ class NotificationDetailDialog:
             "info": ft.icons.INFO_ROUNDED
         }
         return icons.get(type, ft.icons.INFO_ROUNDED)
-    
+
     def _get_color_for_type(self, type: str) -> str:
         """Получить цвет для типа уведомления"""
         colors = {
@@ -32,7 +34,7 @@ class NotificationDetailDialog:
             "info": ft.colors.BLUE
         }
         return colors.get(type, ft.colors.BLUE)
-    
+
     def _get_type_label(self, type: str) -> str:
         """Получить текстовое название типа уведомления"""
         types = {
@@ -42,7 +44,7 @@ class NotificationDetailDialog:
             "info": "Информация"
         }
         return types.get(type, "Информация")
-    
+
     def _format_full_datetime(self, timestamp: datetime) -> str:
         """Форматирование полной даты и времени"""
         # Полная дата
@@ -52,14 +54,14 @@ class NotificationDetailDialog:
         # День недели
         weekdays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
         weekday = weekdays[timestamp.weekday()]
-        
+
         return f"{date_str}, {time_str}\n{weekday}"
-    
+
     def _format_relative_time(self, timestamp: datetime) -> str:
         """Форматирование относительного времени"""
         now = datetime.now()
         diff = now - timestamp
-        
+
         if diff.days > 365:
             return timestamp.strftime("%d.%m.%Y")
         elif diff.days > 0:
@@ -72,11 +74,11 @@ class NotificationDetailDialog:
             return f"{minutes} мин. назад"
         else:
             return "только что"
-    
+
     def build(self) -> ft.AlertDialog:
         """Создает диалоговое окно"""
         icon_color = self._get_color_for_type(self.notification.type)
-        
+
         return ft.AlertDialog(
             title=ft.Container(
                 content=ft.Row([
@@ -111,7 +113,7 @@ class NotificationDetailDialog:
                         ),
                         padding=ft.padding.only(bottom=10),
                     ),
-                    
+
                     # Сообщение
                     ft.Container(
                         content=ft.Text(
@@ -121,9 +123,9 @@ class NotificationDetailDialog:
                         ),
                         padding=ft.padding.only(bottom=15),
                     ),
-                    
+
                     ft.Divider(),
-                    
+
                     # Информация о времени
                     ft.Column([
                         # Тип уведомления
@@ -144,7 +146,7 @@ class NotificationDetailDialog:
                             ]),
                             padding=ft.padding.only(bottom=8),
                         ),
-                        
+
                         # Относительное время
                         ft.Container(
                             content=ft.Row([
@@ -155,7 +157,7 @@ class NotificationDetailDialog:
                             ]),
                             padding=ft.padding.only(bottom=8),
                         ),
-                        
+
                         # Полная дата и время
                         ft.Container(
                             content=ft.Row([
@@ -166,7 +168,7 @@ class NotificationDetailDialog:
                             ]),
                             padding=ft.padding.only(bottom=8),
                         ),
-                        
+
                         # ID уведомления
                         ft.Container(
                             content=ft.Row([
@@ -195,11 +197,11 @@ class NotificationDetailDialog:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-    
+
     def _on_close_click(self, e):
         if self.on_close:
             self.on_close()
-    
+
     def _on_delete_click(self, e):
         if self.on_delete:
             self.on_delete(self.notification.id)
@@ -207,19 +209,19 @@ class NotificationDetailDialog:
 
 class NotificationsPanel:
     """Панель уведомлений с красивым дизайном"""
-    
-    def __init__(self, on_clear_all: Optional[Callable] = None, on_notification_click: Optional[Callable] = None, on_notification_detail: Optional[Callable] = None):
+
+    def __init__(self, on_clear_all: Callable | None = None, on_notification_click: Callable | None = None, on_notification_detail: Callable | None = None):
         self.on_clear_all = on_clear_all
         self.on_notification_click = on_notification_click
         self.on_notification_detail = on_notification_detail
-        self.notifications: List[Notification] = []
+        self.notifications: list[Notification] = []
         self.unread_count = 0
-    
-    def set_notifications(self, notifications: List[Notification], unread_count: int = 0):
+
+    def set_notifications(self, notifications: list[Notification], unread_count: int = 0):
         """Установить список уведомлений"""
         self.notifications = notifications
         self.unread_count = unread_count
-    
+
     def _get_icon_for_type(self, type: str) -> str:
         """Получить иконку для типа уведомления"""
         icons = {
@@ -229,7 +231,7 @@ class NotificationsPanel:
             "info": ft.icons.INFO_ROUNDED
         }
         return icons.get(type, ft.icons.INFO_ROUNDED)
-    
+
     def _get_color_for_type(self, type: str) -> str:
         """Получить цвет для типа уведомления"""
         colors = {
@@ -239,7 +241,7 @@ class NotificationsPanel:
             "info": ft.colors.BLUE
         }
         return colors.get(type, ft.colors.BLUE)
-    
+
     def _get_bgcolor_for_type(self, type: str) -> str:
         """Получить фоновый цвет для типа уведомления"""
         colors = {
@@ -249,12 +251,12 @@ class NotificationsPanel:
             "info": ft.colors.BLUE_50
         }
         return colors.get(type, ft.colors.BLUE_50)
-    
+
     def _format_time(self, timestamp: datetime) -> str:
         """Форматирование времени для отображения"""
         now = datetime.now()
         diff = now - timestamp
-        
+
         if diff.days > 365:
             return timestamp.strftime("%d.%m.%Y")
         elif diff.days > 0:
@@ -267,17 +269,17 @@ class NotificationsPanel:
             return f"{minutes} мин. назад"
         else:
             return "только что"
-    
+
     def _create_notification_item(self, notification: Notification) -> ft.Control:
         """Создает элемент уведомления"""
         icon_color = self._get_color_for_type(notification.type)
         bg_color = self._get_bgcolor_for_type(notification.type)
-        
+
         # Обработчик клика для детального просмотра
         def on_detail_click(e):
             if self.on_notification_detail:
                 self.on_notification_detail(notification)
-        
+
         return ft.Container(
             content=ft.Row(
                 [
@@ -294,12 +296,12 @@ class NotificationsPanel:
                         height=40,
                         alignment=ft.alignment.center,
                     ),
-                    
+
                     # Текст
                     ft.Column(
                         [
                             ft.Text(
-                                notification.title, 
+                                notification.title,
                                 weight=ft.FontWeight.W_600,
                                 size=14,
                                 color=ft.colors.ON_SURFACE,
@@ -307,7 +309,7 @@ class NotificationsPanel:
                                 overflow=ft.TextOverflow.ELLIPSIS
                             ),
                             ft.Text(
-                                notification.message, 
+                                notification.message,
                                 size=12,
                                 color=ft.colors.ON_SURFACE_VARIANT,
                                 max_lines=2,
@@ -322,7 +324,7 @@ class NotificationsPanel:
                         expand=True,
                         spacing=2,
                     ),
-                    
+
                     # Кнопка информации и закрытия
                     ft.Column(
                         [
@@ -358,7 +360,7 @@ class NotificationsPanel:
             margin=ft.margin.only(bottom=8),
             animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT),
         )
-    
+
     def build(self) -> ft.Control:
         """Создает панель уведомлений"""
         if not self.notifications:
@@ -367,13 +369,13 @@ class NotificationsPanel:
                     [
                         ft.Container(height=40),
                         ft.Icon(
-                            ft.icons.NOTIFICATIONS_NONE_ROUNDED, 
-                            size=64, 
+                            ft.icons.NOTIFICATIONS_NONE_ROUNDED,
+                            size=64,
                             color=ft.colors.OUTLINE
                         ),
                         ft.Text(
-                            "Нет уведомлений", 
-                            size=18, 
+                            "Нет уведомлений",
+                            size=18,
                             color=ft.colors.OUTLINE,
                             weight=ft.FontWeight.W_500
                         ),
@@ -413,7 +415,7 @@ class NotificationsPanel:
             spacing=0,
             expand=True,
         )
-    
+
     def _on_notification_click(self, notification_id: int):
         if self.on_notification_click:
             self.on_notification_click(notification_id)
@@ -421,12 +423,12 @@ class NotificationsPanel:
 
 class NotificationBadge(ft.Container):
     """Бейдж с количеством непрочитанных уведомлений"""
-    
+
     def __init__(self, count: int = 0, **kwargs):
         super().__init__(**kwargs)
         self.count = count
         self._update_content()
-    
+
     def _update_content(self):
         self.content = ft.Container(
             content=ft.Text(
@@ -446,7 +448,7 @@ class NotificationBadge(ft.Container):
             animate=ft.animation.Animation(200, ft.AnimationCurve.ELASTIC_OUT),
         )
         self.visible = self.count > 0
-    
+
     def set_count(self, count: int):
         self.count = count
         self._update_content()
@@ -454,10 +456,10 @@ class NotificationBadge(ft.Container):
 
 class NotificationButton(ft.Container):
     """Кнопка уведомлений с бейджем"""
-    
+
     def __init__(
-        self, 
-        on_click: Optional[Callable] = None, 
+        self,
+        on_click: Callable | None = None,
         count: int = 0,
         **kwargs
     ):
@@ -466,10 +468,10 @@ class NotificationButton(ft.Container):
         self._on_click = on_click
         self._badge = None
         self._build()
-    
+
     def _build(self):
         self._badge = NotificationBadge(count=self._count)
-        
+
         self.content = ft.Stack(
             controls=[
                 ft.IconButton(
@@ -488,11 +490,11 @@ class NotificationButton(ft.Container):
                 ),
             ],
         )
-    
+
     def _on_click_handler(self, e):
         if self._on_click:
             self._on_click(e)
-    
+
     def set_count(self, count: int):
         self._count = count
         if self._badge:

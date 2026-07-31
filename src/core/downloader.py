@@ -1,11 +1,12 @@
 import os
-import requests
 import sys
-from pathlib import Path
-from typing import Optional, List
+
+import requests
+
+from src.config import NURBOOKS_DOWNLOADS_PATH
 from src.core.models import Book
 from src.core.utils import format_file_size
-from src.config import NURBOOKS_DOWNLOADS_PATH
+
 
 class Downloader:
     def __init__(self, download_path: str = None, database=None):
@@ -18,7 +19,7 @@ class Downloader:
         """Конвертирует GitHub blob URL в raw URL для прямого доступа к файлу"""
         if not url:
             return url
-        
+
         # Если уже raw ссылка
         if "raw.githubusercontent.com" in url:
             return url
@@ -55,7 +56,7 @@ class Downloader:
         # Резервный вариант - только ID
         return f"{book.id}.pdf"
 
-    def download_book(self, book: Book, custom_path: Optional[str] = None) -> str:
+    def download_book(self, book: Book, custom_path: str | None = None) -> str:
         """
         Скачивает книгу и возвращает путь к файлу
         """
@@ -120,7 +121,7 @@ class Downloader:
         except Exception as e:
             raise Exception(f"Ошибка скачивания книги: {e}")
 
-    def download_book_with_size(self, book: Book, custom_path: Optional[str] = None) -> tuple[str, str]:
+    def download_book_with_size(self, book: Book, custom_path: str | None = None) -> tuple[str, str]:
         """
         Скачивает книгу и возвращает путь к файлу и его размер в форматированном виде
         """
@@ -136,14 +137,14 @@ class Downloader:
 
         except Exception as e:
             raise Exception(f"Ошибка скачивания книги: {e}")
-    
-    def get_downloaded_books(self) -> List[str]:
+
+    def get_downloaded_books(self) -> list[str]:
         """Получить список скачанных книг"""
         try:
             return [f for f in os.listdir(self.download_path) if f.endswith('.pdf')]
         except FileNotFoundError:
             return []
-    
+
     def delete_book(self, filename: str) -> bool:
         """Удалить скачанную книгу"""
         try:
@@ -156,7 +157,7 @@ class Downloader:
             print(f"Ошибка удаления файла: {e}")
             return False
 
-    def is_book_downloaded(self, book: Book) -> tuple[bool, Optional[str]]:
+    def is_book_downloaded(self, book: Book) -> tuple[bool, str | None]:
         """
         Проверяет, скачана ли книга, и возвращает статус и путь к файлу
 

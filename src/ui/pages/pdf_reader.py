@@ -1,15 +1,13 @@
-import flet as ft
 import os
-import sys
-import threading
-import tempfile
-import time
 import shutil
-import subprocess
-from typing import Optional
-from src.core.models import Book
+import tempfile
+import threading
+import time
+
+import flet as ft
+
 from src.core.downloader import Downloader
-from src.core.statistics_manager import stats  # 🔥 Централизованный менеджер статистики
+from src.core.models import Book
 
 try:
     import fitz  # pymupdf
@@ -45,8 +43,8 @@ class PDFReaderPage:
     """
     PDF-ридер с надёжным обновлением через файлы.
     """
-    
-    def __init__(self, page: ft.Page, book: Book, on_back=None, downloader: Optional[Downloader] = None, bookmarks=None, go_to_page: Optional[int] = None):
+
+    def __init__(self, page: ft.Page, book: Book, on_back=None, downloader: Downloader | None = None, bookmarks=None, go_to_page: int | None = None):
         self.page = page
         self.book = book
         self.on_back = on_back
@@ -62,9 +60,9 @@ class PDFReaderPage:
         self.current_page = 0
         self.total_pages = 0
         self.zoom = 1.0
-        self.pdf_path: Optional[str] = None
+        self.pdf_path: str | None = None
         self.render_dir: str = ""
-        
+
         # Блокировки
         self._render_lock = threading.Lock()
         self._stop_preload = threading.Event()
@@ -114,7 +112,7 @@ class PDFReaderPage:
             fit=ft.ImageFit.NONE,
             gapless_playback=True,  # Важно для плавной смены!
         )
-        
+
         # Иконка-заглушка
         self.placeholder = ft.Column(
             [ft.Icon(ft.icons.MENU_BOOK, size=80, color=ft.colors.with_opacity(0.3, ft.colors.ON_SURFACE))],
@@ -132,7 +130,7 @@ class PDFReaderPage:
         self.loading_ring = ft.ProgressRing(width=40, height=40)
         self.loading_text = ft.Text("Подготовка...")
         self.progress_bar = ft.ProgressBar(width=200, bar_height=3)
-        
+
         self.loading_column = ft.Column(
             [self.loading_ring, self.progress_bar, self.loading_text],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -148,7 +146,7 @@ class PDFReaderPage:
             on_click=self._download_book,
             visible=False,
         )
-        
+
         self.error_column = ft.Column(
             [self.error_text, self.download_btn_big],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -300,16 +298,16 @@ class PDFReaderPage:
             self.page_image.visible = True
             self.placeholder.visible = False
             self.overlay.visible = False
-            
+
             # Обновляем счётчик
             self.total_pages_text.value = str(self.total_pages)
             self.page_input.value = str(self.current_page + 1)
             self.prev_btn.disabled = self.current_page <= 0
             self.next_btn.disabled = self.current_page >= self.total_pages - 1
-            
+
             # Сохраняем прогресс
             self._save_progress()
-            
+
             # Обновляем страницу
             self.page.update()
             print(f"[PDF] Показана страница {self.current_page + 1}")
@@ -384,7 +382,7 @@ class PDFReaderPage:
     def _find_pdf_manual(self) -> tuple:
         """Ищет PDF вручную"""
         paths = []
-        
+
         # Downloads
         dl_dir = os.path.join(os.path.expanduser("~/Downloads"), "downloads-nurbooks")
         if os.path.exists(dl_dir):
@@ -416,7 +414,7 @@ class PDFReaderPage:
 
         return False, None
 
-    def _render_page(self, page_num: int) -> Optional[str]:
+    def _render_page(self, page_num: int) -> str | None:
         """Рендерит страницу в файл и возвращает путь"""
         if not self.pdf_doc or page_num < 0 or page_num >= self.total_pages:
             return None
@@ -439,7 +437,7 @@ class PDFReaderPage:
                     pix.save(output_path)
                 else:
                     raise AttributeError("No render method available in PyMuPDF")
-                
+
                 print(f"[PDF] Страница {page_num + 1} отрендерена (zoom={self.zoom})")
                 return output_path
 
@@ -450,7 +448,7 @@ class PDFReaderPage:
     def _preload_pages(self):
         """Предзагрузка соседних страниц"""
         time.sleep(0.5)
-        
+
         offsets = [1, 2, -1, 3, 4]
         for offset in offsets:
             if self._stop_preload.is_set():
@@ -465,7 +463,7 @@ class PDFReaderPage:
             return
 
         self.current_page = page_num
-        
+
         # Пытаемся найти в кэше
         path = self._render_page(page_num)
         if path:
@@ -544,7 +542,7 @@ class PDFReaderPage:
                 stats.increment_download_count(self.book.id)
                 self.book.download_count = getattr(self.book, "download_count", 0) + 1
                 print(f"[PDF] Скачано: {path}")
-                
+
                 # Показываем уведомление
                 self.page.snack_bar = ft.SnackBar(ft.Text(f"Скачано: {self.book.title}"))
                 self.page.snack_bar.open = True
@@ -553,7 +551,7 @@ class PDFReaderPage:
                 # Перезагружаем
                 if self.pdf_doc:
                     self.pdf_doc.close()
-                    
+
                 self._load_pdf()
             except Exception as ex:
                 self._show_error(f"Ошибка скачивания:\n{ex}")
@@ -605,14 +603,15 @@ class PDFReaderPage:
         self._clear_render_cache()
         if self.on_back:
             self.on_back()
-    
+
     def _add_bookmark(self, e):
         """Добавляет закладку для текущей страницы"""
-        from src.core.database import Database
         from datetime import datetime
-        
+
+        from src.core.database import Database
+
         db = Database()
-        
+
         # Проверяем, нет ли уже закладки на этой странице
         existing = [b for b in self.bookmarks if b.book_id == self.book.id and b.page_number == self.current_page + 1]
         if existing:
@@ -623,7 +622,7 @@ class PDFReaderPage:
             self.page.snack_bar.open = True
             self.page.update()
             return
-        
+
         # Добавляем закладку
         from src.core.models import Bookmark
         bookmark = Bookmark(
@@ -632,7 +631,7 @@ class PDFReaderPage:
             page_number=self.current_page + 1,
             timestamp=datetime.now().isoformat()
         )
-        
+
         if db.add_bookmark(bookmark):
             self.bookmarks.append(bookmark)
             self.page.snack_bar = ft.SnackBar(
@@ -646,7 +645,7 @@ class PDFReaderPage:
             )
         self.page.snack_bar.open = True
         self.page.update()
-    
+
     def _jump_to_page(self, e):
         """Переход на указанную страницу"""
         try:

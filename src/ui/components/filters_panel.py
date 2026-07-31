@@ -1,5 +1,6 @@
+from collections.abc import Callable
+
 import flet as ft
-from typing import List, Callable
 
 
 class FiltersPanel:
@@ -49,15 +50,15 @@ class FiltersPanel:
             visible=False,
         )
 
-    def set_categories(self, categories: List[str]):
+    def set_categories(self, categories: list[str]):
         self.categories = ["Все категории"] + categories
         self.category_dropdown.options = [ft.dropdown.Option(cat) for cat in self.categories]
 
-    def set_authors(self, authors: List[str]):
+    def set_authors(self, authors: list[str]):
         self.authors = ["Все авторы"] + authors
         self.author_dropdown.options = [ft.dropdown.Option(author) for author in self.authors]
 
-    def set_years(self, years: List[str]):
+    def set_years(self, years: list[str]):
         self.years = ["Все годы"] + years
         self.year_dropdown.options = [ft.dropdown.Option(year) for year in self.years]
 

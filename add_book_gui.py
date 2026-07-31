@@ -1,16 +1,16 @@
-import customtkinter as ctk
-from tkinter import ttk, filedialog, messagebox
-import sys
 import os
+import sys
+from tkinter import messagebox, ttk
+
+import customtkinter as ctk
 import requests
-from pathlib import Path
 
 # Добавляем путь к src для импорта моделей
 sys.path.insert(0, os.path.abspath('.'))
 
+from src.config import DEFAULT_DATA_PATH, DEFAULT_PDFS_PATH
 from src.core.database import Database
 from src.core.models import Book
-from src.config import DEFAULT_PDFS_PATH, DEFAULT_DATA_PATH
 
 # Настройка темы custom tkinter
 ctk.set_appearance_mode("system")
@@ -138,8 +138,8 @@ class BookManagerApp:
         button_frame.pack(pady=10)
 
         self.add_button = ctk.CTkButton(
-            button_frame, 
-            text="Добавить книгу", 
+            button_frame,
+            text="Добавить книгу",
             command=self.add_book,
             fg_color="#4CAF50",
             hover_color="#45a049",
@@ -148,8 +148,8 @@ class BookManagerApp:
         self.add_button.grid(row=0, column=0, padx=5)
 
         self.update_button = ctk.CTkButton(
-            button_frame, 
-            text="Обновить книгу", 
+            button_frame,
+            text="Обновить книгу",
             command=self.update_book,
             fg_color="#FF9800",
             hover_color="#e68900",
@@ -158,8 +158,8 @@ class BookManagerApp:
         self.update_button.grid(row=0, column=1, padx=5)
 
         self.delete_button = ctk.CTkButton(
-            button_frame, 
-            text="Удалить книгу", 
+            button_frame,
+            text="Удалить книгу",
             command=self.delete_book,
             fg_color="#F44336",
             hover_color="#d32f2f",
@@ -168,8 +168,8 @@ class BookManagerApp:
         self.delete_button.grid(row=0, column=2, padx=5)
 
         self.clear_button = ctk.CTkButton(
-            button_frame, 
-            text="Очистить форму", 
+            button_frame,
+            text="Очистить форму",
             command=self.clear_form,
             fg_color="#9E9E9E",
             hover_color="#757575",
@@ -178,15 +178,15 @@ class BookManagerApp:
         self.clear_button.grid(row=0, column=3, padx=5)
 
         self.reset_db_button = ctk.CTkButton(
-            button_frame, 
-            text="Сбросить базу данных", 
+            button_frame,
+            text="Сбросить базу данных",
             command=self.reset_db,
             fg_color="#005AD8",
             hover_color="#0044a8",
             font=ctk.CTkFont(size=14)
         )
         self.reset_db_button.grid(row=0, column=4, padx=5)
-        
+
         # Фрейм для списка книг
         list_frame = ctk.CTkFrame(self.root)
         list_frame.pack(pady=20, padx=20, fill=ctk.BOTH, expand=True)
@@ -197,14 +197,14 @@ class BookManagerApp:
 
         # Создаем Treeview для отображения книг (используем стандартный ttk для Treeview)
         columns = ("ID", "Название", "Автор", "Категория", "Год", "Размер (МБ)", "Страницы", "Авторские права", "PDF")
-        
+
         # Настройка стиля Treeview
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("Treeview", background="#2b2b2b", foreground="white", fieldbackground="#2b2b2b", rowheight=25)
         style.map("Treeview", background=[("selected", "#1f6aa5")])
         style.configure("Treeview.Heading", background="#444444", foreground="white", font=("Arial", 10, "bold"))
-        
+
         self.books_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=10, style="Treeview")
 
         # Настройка заголовков
@@ -227,34 +227,26 @@ class BookManagerApp:
         """Настройка горячих клавиш и контекстного меню для виджета"""
         widget.bind("<FocusIn>", lambda e: self._on_widget_focus(widget))
         widget.bind("<Button-3>", lambda e: self._show_context_menu(e, widget))
-    
+
     def _on_widget_focus(self, widget):
         """Обновляем текущий виджет при получении фокуса"""
         self.current_widget = widget
-    
+
     def _show_context_menu(self, event, widget):
         """Показываем контекстное меню при правом клике"""
         from tkinter import Menu
         menu = Menu(self.root, tearoff=0)
-        
-        try:
-            if isinstance(widget, ctk.CTkEntry):
-                selected = widget.selection_present()
-            else:
-                selected = widget.tag_ranges("sel")
-        except Exception:
-            selected = False
-        
+
         menu.add_command(label="Копировать", command=lambda: self._copy_from_widget(widget))
         menu.add_command(label="Вставить", command=lambda: self._paste_to_widget(widget))
         menu.add_separator()
         menu.add_command(label="Выделить всё", command=lambda: self._select_all_in_widget(widget))
-        
+
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
-    
+
     def _copy_from_widget(self, widget):
         """Копирует текст из виджета в буфер обмена"""
         try:
@@ -265,26 +257,26 @@ class BookManagerApp:
                     text = widget.get("sel.first", "sel.last")
                 except Exception:
                     text = widget.get("1.0", ctk.END).strip()
-            
+
             if text:
                 self.root.clipboard_clear()
                 self.root.clipboard_append(text)
                 self.root.update()
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось скопировать: {str(e)}")
-    
+
     def _paste_to_widget(self, widget):
         """Вставляет текст из буфера обмена в виджет"""
         try:
             text = self.root.clipboard_get()
-            
+
             if isinstance(widget, ctk.CTkEntry):
                 widget.insert(ctk.INSERT, text)
             else:
                 widget.insert(ctk.INSERT, text)
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось вставить: {str(e)}")
-    
+
     def _select_all_in_widget(self, widget):
         """Выделяет весь текст в виджете"""
         try:
@@ -296,25 +288,25 @@ class BookManagerApp:
                 widget.mark_set(ctk.INSERT, "1.0")
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось выделить: {str(e)}")
-    
+
     def setup_shortcuts(self):
         """Настройка глобальных горячих клавиш"""
         self.root.bind("<Control-c>", self._on_ctrl_c)
         self.root.bind("<Control-v>", self._on_ctrl_v)
         self.root.bind("<Control-a>", self._on_ctrl_a)
-    
+
     def _on_ctrl_c(self, event):
         """Обработка Ctrl+C - копирование"""
         if self.current_widget:
             self._copy_from_widget(self.current_widget)
         return "break"
-    
+
     def _on_ctrl_v(self, event):
         """Обработка Ctrl+V - вставка"""
         if self.current_widget:
             self._paste_to_widget(self.current_widget)
         return "break"
-    
+
     def _on_ctrl_a(self, event):
         """Обработка Ctrl+A - выделение всего"""
         if self.current_widget:
@@ -325,13 +317,13 @@ class BookManagerApp:
         """Конвертирует GitHub URL в raw URL для прямого доступа к файлу"""
         if not url:
             return url
-        
+
         # Поддержка GitHub Releases (новый формат)
         # https://github.com/salihhhh014/NurBooks/releases/download/COVERS/filename.png
         if "github.com" in url and "/releases/download/" in url:
             # Для Releases уже raw-адреса - просто возвращаем как есть
             return url
-        
+
         # Поддержка GitHub blob (старый формат)
         if "github.com" in url and "/blob/" in url:
             return url.replace("/blob/", "/raw/")
@@ -348,13 +340,13 @@ class BookManagerApp:
         try:
             # Конвертируем URL в правильный формат (например, blob -> raw)
             url = self._convert_to_raw_url(url)
-            
+
             self.progress_label.configure(text=f"Проверка доступности {file_type}...")
             self.root.update()
-            
+
             # Добавляем User-Agent, чтобы GitHub не блокировал скрипт
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            
+
             # Сначала пробуем быстрый метод (HEAD)
             try:
                 response = requests.head(url, timeout=15, allow_redirects=True, headers=headers)
@@ -366,15 +358,15 @@ class BookManagerApp:
 
             # Если HEAD провалился (частично устаревшие ссылки GitHub), пробуем надежный GET
             response = requests.get(url, timeout=30, allow_redirects=True, headers=headers)
-            
+
             if response.status_code == 200:
                 self.progress_label.configure(text=f"✅ {file_type.capitalize()} доступен!")
                 return True
-            
+
             self.progress_label.configure(text="")
             messagebox.showerror("Ошибка проверки", f"{file_type.capitalize()} не найден.\n\nУбедитесь, что ссылка является прямой ссылкой на файл (не на страницу GitHub).\nКод ошибки: {response.status_code}")
             return False
-            
+
         except Exception as e:
             self.progress_label.configure(text="")
             messagebox.showerror("Ошибка сети", f"Не удалось проверить {file_type}:\n{str(e)}")
@@ -390,22 +382,22 @@ class BookManagerApp:
         try:
             # Конвертируем GitHub URL в raw формат
             url = self._convert_to_raw_url(url)
-            
+
             self.progress_label.configure(text=f"Скачивание {file_type}...")
             self.root.update()
-            
+
             # Добавляем User-Agent, чтобы GitHub разрешал скачивание
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            
+
             response = requests.get(url, timeout=60, headers=headers)
             response.raise_for_status()
-            
+
             with open(save_path, 'wb') as f:
                 f.write(response.content)
-            
+
             self.progress_label.configure(text=f"✅ {file_type.capitalize()} успешно скачан!")
             return True
-            
+
         except requests.exceptions.RequestException as e:
             self.progress_label.configure(text="")
             messagebox.showerror("Ошибка скачивания", f"Не удалось скачать {file_type}:\n{str(e)}")
@@ -418,12 +410,12 @@ class BookManagerApp:
     def _get_filename_from_url(self, url: str, book_id: int, extension: str) -> str:
         """
         Извлекает имя файла из URL или генерирует его на основе ID книги
-        
+
         Args:
             url: URL файла
             book_id: ID книги
             extension: Расширение файла (например, '.pdf', '.jpg')
-            
+
         Returns:
             str: Имя файла
         """
@@ -431,12 +423,12 @@ class BookManagerApp:
             # Убираем query параметры из URL
             clean_url = url.split('?')[0]
             filename = os.path.basename(clean_url)
-            
+
             if filename and '.' in filename:
                 return filename
         except Exception:
             pass
-        
+
         # Если не удалось извлечь имя, генерируем на основе ID
         return f"book_{book_id}{extension}"
 
@@ -465,7 +457,7 @@ class BookManagerApp:
             if self.db.get_book_by_id(book_id):
                 messagebox.showerror("Ошибка", f"Книга с ID {book_id} уже существует.")
                 return
-            
+
             title = self.title_entry.get().strip()
             author = self.author_entry.get().strip()
             category = self.category_entry.get().strip()
@@ -567,7 +559,7 @@ class BookManagerApp:
 
             # Получаем текущую книгу (для сохранения старых значений если поле пустое)
             current_book = self.db.get_book_by_id(book_id)
-            
+
             # Обрабатываем PDF - всегда сохраняем как есть
             pdf_path = pdf_url
             if pdf_url.startswith(('http://', 'https://')):
@@ -658,13 +650,13 @@ class BookManagerApp:
                         os.remove(pdf_path)
                     except Exception as e:
                         print(f"Не удалось удалить PDF файл: {e}")
-                
+
                 if cover_path and os.path.exists(cover_path):
                     try:
                         os.remove(cover_path)
                     except Exception as e:
                         print(f"Не удалось удалить файл обложки: {e}")
-                
+
                 messagebox.showinfo("Успех", "Книга успешно удалена!")
                 self.refresh_books_list()
                 self.clear_form()
@@ -701,7 +693,7 @@ class BookManagerApp:
         if selection:
             item = self.books_tree.item(selection[0])
             values = item['values']
-            
+
             selected_id = values[0]
             selected_book = self.db.get_book_by_id(selected_id)
 
@@ -722,13 +714,13 @@ class BookManagerApp:
                 self.year_entry.insert(0, str(selected_book.year))
                 self.description_text.delete("1.0", ctk.END)
                 self.description_text.insert("1.0", selected_book.description)
-                
+
                 # Показываем локальные пути (для информации)
                 self.pdf_url_entry.delete(0, ctk.END)
                 self.pdf_url_entry.insert(0, selected_book.pdf)
                 self.cover_url_entry.delete(0, ctk.END)
                 self.cover_url_entry.insert(0, selected_book.cover)
-                
+
                 self.file_size_entry.delete(0, ctk.END)
                 self.file_size_entry.insert(0, selected_book.file_size or "")
                 self.pages_entry.delete(0, ctk.END)
@@ -752,8 +744,8 @@ class BookManagerApp:
         self.cover_url_entry.delete(0, ctk.END)
         self.progress_label.configure(text="")
         self.selected_book_id = None
-        
-    
+
+
     def reset_db(self):
         result = messagebox.askyesno("Подтверждение", "Вы уверены, что хотите сбросить базу данных книг? Все данные будут удалены.")
         if not result:
@@ -765,17 +757,17 @@ class BookManagerApp:
                 self.books_tree.delete(item)
 
             self.db.clear_books()
-            
+
             messagebox.showinfo("Успех", "База данных книг успешно сброшена!")
             self.refresh_books_list()
         except Exception as e:
             messagebox.showerror("Ошибка", f"Произошла ошибка при сбросе базы данных: {str(e)}")
-            
-            
-            
+
+
+
 def main():
     root = ctk.CTk()
-    app = BookManagerApp(root)
+    BookManagerApp(root)
     root.mainloop()
 
 

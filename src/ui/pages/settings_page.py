@@ -1,15 +1,16 @@
-import flet as ft
 import os
-from typing import Optional
-from src.core.storage import Storage
+
+import flet as ft
+
+from src.config import APP_VERSION, NURBOOKS_DOWNLOADS_PATH
 from src.core.models import UserSettings
 from src.core.notifications import NotificationManager
-from src.config import APP_VERSION, NURBOOKS_DOWNLOADS_PATH
+from src.core.storage import Storage
 
 
 class SettingsPage:
     def __init__(
-        self, page: ft.Page, notification_manager: Optional[NotificationManager] = None
+        self, page: ft.Page, notification_manager: NotificationManager | None = None
     ):
         self.page = page
         self.notification_manager = notification_manager
@@ -296,8 +297,8 @@ class SettingsPage:
 
     def _on_check_updates(self, e):
         """Проверяет обновления на GitHub."""
-        from src.core.updater import check_latest, is_newer
         from src.config import APP_VERSION as CURR_VER
+        from src.core.updater import check_latest, is_newer
 
         self._check_update_btn.disabled = True
         self._update_status_text.value = "Проверка..."
@@ -318,8 +319,8 @@ class SettingsPage:
                         f"{info.body[:500] if info.body else ''}"
                     ),
                     actions=[
-                        ft.TextButton("Позже", on_click=lambda _, d=dlg: self.page.close(d)),
-                        ft.ElevatedButton("Скачать", on_click=lambda _, d=dlg: self._do_update(info, d)),
+                        ft.TextButton("Позже", on_click=lambda _: self.page.close(dlg)),
+                        ft.ElevatedButton("Скачать", on_click=lambda _: self._do_update(info, dlg)),
                     ],
                 )
                 self.page.open(dlg)
@@ -347,7 +348,8 @@ class SettingsPage:
         import os
         import tempfile
         import threading
-        from src.core.updater import download_update, apply_update
+
+        from src.core.updater import apply_update, download_update
 
         self.page.close(dlg)
         self._update_status_text.value = "Скачивание..."
@@ -416,9 +418,9 @@ class SettingsPage:
             actions=[
                 ft.TextButton(
                     "Отмена",
-                    on_click=lambda _, d=dlg: self.page.close(d),
+                    on_click=lambda _: self.page.close(dlg),
                 ),
-                ft.TextButton("Очистить", on_click=lambda e, d=dlg: self._confirm_clear_cache(e, d)),
+                ft.TextButton("Очистить", on_click=lambda e: self._confirm_clear_cache(e, dlg)),
             ],
         )
         self.page.open(dlg)
@@ -523,9 +525,9 @@ class SettingsPage:
             actions=[
                 ft.TextButton(
                     "Отмена",
-                    on_click=lambda _, d=dlg: self.page.close(d),
+                    on_click=lambda _: self.page.close(dlg),
                 ),
-                ft.TextButton("Сбросить", on_click=lambda e, d=dlg: self._confirm_reset_settings(e, d)),
+                ft.TextButton("Сбросить", on_click=lambda e: self._confirm_reset_settings(e, dlg)),
             ],
         )
         self.page.open(dlg)

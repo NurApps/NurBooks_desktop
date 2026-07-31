@@ -1,12 +1,14 @@
+
 import flet as ft
-from typing import List
+
 from src.core.models import Author
 
+
 class AuthorsPage:
-    def __init__(self, page: ft.Page, authors: List[Author], on_author_click=None):
+    def __init__(self, page: ft.Page, authors: list[Author], on_author_click=None):
         self.page = page
         self.on_author_click = on_author_click
-        self.authors: List[Author] = authors
+        self.authors: list[Author] = authors
         self.content = self._create_content()
 
     def _create_author_card(self, author: Author) -> ft.Control:
@@ -37,7 +39,7 @@ class AuthorsPage:
             on_click=lambda e, a=author: self._on_author_click(a),
             width=300, height=200
         )
-    
+
     def _create_content(self) -> ft.Control:
         if not self.authors:
             return ft.Container(
@@ -69,12 +71,12 @@ class AuthorsPage:
             ]),
             expand=True
         )
-    
+
     def _on_author_click(self, author: Author):
         """Обработчик клика по автору"""
         if self.on_author_click:
             self.on_author_click(author)
-    
+
     def build(self) -> ft.Control:
         """Возвращает содержимое страницы"""
         return self.content

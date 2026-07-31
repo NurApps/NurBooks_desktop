@@ -1,14 +1,16 @@
-import flet as ft
+import json
 import os
 import threading
-from typing import List
+from datetime import datetime
+
+import flet as ft
+
+from src.core.database import Database
 from src.core.downloader import Downloader
+from src.core.models import Book
 from src.core.notifications import NotificationManager
 from src.core.storage import Storage
-from src.core.models import Book
-from src.core.database import Database
-from datetime import datetime
-import json
+
 
 class MyLibraryPage:
     def __init__(self, page: ft.Page, notification_manager: NotificationManager = None, on_read_book=None):
@@ -20,12 +22,12 @@ class MyLibraryPage:
         self.on_read_book = on_read_book
         self._search_timer = None
         self.search_query = ""
-        
-        self.downloaded_books: List[str] = []
-        self.saved_books: List[str] = []
-        self.favorite_books: List[str] = []
+
+        self.downloaded_books: list[str] = []
+        self.saved_books: list[str] = []
+        self.favorite_books: list[str] = []
         self.bookmarks = []
-        
+
         self._load_data()
         self.search_field = ft.TextField(
             hint_text="Поиск в библиотеке...",
@@ -35,32 +37,32 @@ class MyLibraryPage:
             height=40,
         )
         self.content = self._create_content()
-    
+
     def _load_data(self):
         """Загружает данные"""
         self.downloaded_books = self.downloader.get_downloaded_books()
         # Загрузка сохраненных книг из файла
         try:
-            with open("data/saved_books.json", "r") as f:
+            with open("data/saved_books.json") as f:
                 self.saved_books = json.load(f)
         except FileNotFoundError:
             self.saved_books = []
         except Exception:
             self.saved_books = []
-        
+
         # Загрузка избранных книг из файла
         try:
-            with open("data/favorite_books.json", "r") as f:
+            with open("data/favorite_books.json") as f:
                 self.favorite_books = json.load(f)
         except FileNotFoundError:
             self.favorite_books = []
         except Exception:
             self.favorite_books = []
-        
+
         # Загрузка закладок из базы данных
         db = Database()
         self.bookmarks = db.get_all_bookmarks_with_books()
-    
+
     def _save_saved_books(self):
         """Сохраняет список сохраненных книг"""
         try:
@@ -76,7 +78,7 @@ class MyLibraryPage:
                 json.dump(self.favorite_books, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Ошибка сохранения избранного: {e}")
-    
+
     def _create_downloaded_book_item(self, book: Book, filename: str) -> ft.Control:
         """Создает элемент для скачанной книги"""
         return ft.Container(
@@ -137,7 +139,7 @@ class MyLibraryPage:
             border_radius=12,
             margin=ft.margin.only(bottom=8)
         )
-    
+
     def _get_file_size(self, filename: str) -> str:
         """Получает размер файла"""
         try:
@@ -173,7 +175,6 @@ class MyLibraryPage:
 
     def _show_book_info(self, book: Book):
         """Показывает информацию о книге"""
-        from src.core.storage import Storage
         dlg = ft.AlertDialog(
             title=ft.Text(book.title, text_align=ft.TextAlign.CENTER),
             content=ft.Column([
@@ -192,7 +193,7 @@ class MyLibraryPage:
         )
         self.page.open(dlg)
         self.page.update()
-    
+
     def _create_my_book_item(self, book: Book) -> ft.Control:
         """Создает элемент для сохраненной книги (с кнопкой скачать)"""
         return ft.Container(
@@ -258,10 +259,10 @@ class MyLibraryPage:
         """Создает элемент для избранной книги"""
         books = self.storage.load_books()
         book = next((b for b in books if str(b.id) == book_id), None)
-        
+
         if not book:
             return ft.Container()
-        
+
         return ft.Container(
             content=ft.Row([
                 ft.Container(
@@ -288,18 +289,18 @@ class MyLibraryPage:
             border_radius=12,
             margin=ft.margin.only(bottom=8)
         )
-    
+
     def _create_bookmark_item(self, bookmark_data: tuple) -> ft.Control:
         """Создает элемент для закладки"""
         bookmark, book = bookmark_data
-        
+
         def format_date(ts: str) -> str:
             try:
                 dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
                 return dt.strftime("%d.%m.%Y %H:%M")
-            except:
+            except (ValueError, TypeError):
                 return ts
-        
+
         return ft.Container(
             content=ft.Row([
                 ft.Container(
@@ -334,7 +335,7 @@ class MyLibraryPage:
             border_radius=12,
             margin=ft.margin.only(bottom=8)
         )
-    
+
     def _on_search_change(self, e):
         """Debounce поиска — ждём 300мс после последнего ввода"""
         if self._search_timer:
@@ -456,7 +457,7 @@ class MyLibraryPage:
             ]),
             expand=True
         )
-    
+
     def _matches_search(self, book) -> bool:
         q = self.search_query
         if not q:
@@ -504,7 +505,7 @@ class MyLibraryPage:
             padding=20,
             expand=True
         )
-    
+
     def _create_favorite_tab(self) -> ft.Control:
         """Создает вкладку с избранными книгами"""
         all_books = self.storage.load_books()
@@ -525,7 +526,7 @@ class MyLibraryPage:
                 padding=20,
                 alignment=ft.alignment.center
             )
-        
+
         return ft.Container(
             content=ft.Column([
                 ft.Text(f"Избранных книг: {len(book_items)}", size=14, color=ft.colors.GREY),
@@ -538,7 +539,7 @@ class MyLibraryPage:
             padding=20,
             expand=True
         )
-    
+
     def _create_bookmarks_tab(self) -> ft.Control:
         """Создает вкладку с закладками"""
         bookmark_items = []
@@ -558,7 +559,7 @@ class MyLibraryPage:
                 padding=20,
                 alignment=ft.alignment.center
             )
-        
+
         return ft.Container(
             content=ft.Column([
                 ft.Text(
@@ -575,14 +576,14 @@ class MyLibraryPage:
             padding=20,
             expand=True
         )
-    
+
     def _go_to_bookmark_page(self, book, page_number):
         """Переходит к странице закладки - открывает читалку"""
         if self.on_read_book:
             self.on_read_book(book, page_number)
         else:
             self._open_or_read_book_for_bookmark(book, page_number)
-    
+
     def _delete_bookmark(self, bookmark_id: int):
         """Удаляет закладку"""
         db = Database()
@@ -591,7 +592,7 @@ class MyLibraryPage:
             self.bookmarks = db.get_all_bookmarks_with_books()
             self.content = self._create_content()
             self.page.update()
-            
+
             if self.notification_manager:
                 self.notification_manager.add_notification(
                     title="Закладка удалена",
@@ -605,11 +606,11 @@ class MyLibraryPage:
                     message="Не удалось удалить закладку",
                     type="error"
                 )
-    
+
     def _open_or_read_book(self, filename: str):
         """Открывает книгу - показывает диалог выбора читалки или открывает сразу по настройке"""
         file_path = os.path.join(self.downloader.download_path, filename)
-        
+
         if not os.path.exists(file_path):
             if self.notification_manager:
                 self.notification_manager.add_notification(
@@ -618,46 +619,46 @@ class MyLibraryPage:
                     type="warning"
                 )
             return
-        
+
         # Получаем настройку читалки (перечитываем настройки для актуальности)
         self.settings = self.storage.load_settings()
         reader_pref = self.settings.pdf_reader
-        
+
         if reader_pref == "builtin":
             self._open_in_builtin_reader(filename)
         elif reader_pref == "system":
             self._open_in_system_reader(file_path)
         else:
             self._show_reader_choice_dialog(filename, file_path)
-    
+
     def _open_or_read_book_for_bookmark(self, book, page_number=None):
         """Открывает книгу для перехода по закладке"""
         # Пробуем on_read_book с page_number
         if self.on_read_book:
             self.on_read_book(book, page_number)
             return
-        
+
         # Ищем скачанный файл
         is_downloaded, filepath = self.downloader.is_book_downloaded(book)
-        
+
         if not is_downloaded or not filepath:
             # Ищем вручную
             base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
             possible_paths = []
-            
+
             nurbooks_path = os.path.join(os.path.expanduser("~/Downloads"), "downloads-nurbooks")
             if os.path.exists(nurbooks_path):
                 for f in os.listdir(nurbooks_path):
                     if f.endswith('.pdf') and str(book.id) in f:
                         possible_paths.append(os.path.join(nurbooks_path, f))
-            
+
             for folder in ["saved_books", "pdfs"]:
                 p = os.path.join(base_path, folder)
                 if os.path.exists(p):
                     for f in os.listdir(p):
                         if f.endswith('.pdf') and str(book.id) in f:
                             possible_paths.append(os.path.join(p, f))
-            
+
             if possible_paths:
                 filepath = possible_paths[0]
             else:
@@ -668,9 +669,9 @@ class MyLibraryPage:
                         type="warning"
                     )
                 return
-        
+
         self._open_in_builtin_reader_for_book(book, filepath)
-    
+
     def _show_reader_choice_dialog(self, filename: str, file_path: str):
         """Показывает диалог выбора читалки"""
         all_books = self.storage.load_books()
@@ -681,20 +682,20 @@ class MyLibraryPage:
             self.page.dialog.open = False
             self.page.update()
             self._open_in_builtin_reader(filename)
-        
+
         def on_system(e):
             self.page.dialog.open = False
             self.page.update()
             self._open_in_system_reader(file_path)
-        
+
         def on_always_builtin(e):
             self._save_reader_preference("builtin")
             on_builtin(e)
-        
+
         def on_always_system(e):
             self._save_reader_preference("system")
             on_system(e)
-        
+
         self.page.dialog = ft.AlertDialog(
             title=ft.Row([
                 ft.Icon(ft.icons.MENU_BOOK, color=ft.colors.PRIMARY),
@@ -730,7 +731,7 @@ class MyLibraryPage:
         )
         self.page.dialog.open = True
         self.page.update()
-    
+
     def _open_in_builtin_reader(self, filename: str):
         """Открывает книгу во встроенной читалке"""
         books = self.storage.load_books()
@@ -773,7 +774,7 @@ class MyLibraryPage:
                     self.on_read_book(temp_book)
             else:
                 self._open_in_system_reader(file_path)
-    
+
     def _open_in_builtin_reader_for_book(self, book, filepath):
         """Открывает книгу во встроенной читалке с передачей пути"""
         from src.core.models import Book
@@ -789,7 +790,7 @@ class MyLibraryPage:
         )
         if self.on_read_book:
             self.on_read_book(temp_book)
-    
+
     def _open_in_system_reader(self, file_path: str):
         """Открывает файл системной программой"""
         try:
@@ -802,12 +803,12 @@ class MyLibraryPage:
                     message=f"Не удалось открыть файл: {e}",
                     type="error"
                 )
-    
+
     def _save_reader_preference(self, reader_type: str):
         """Сохраняет предпочтение читалки"""
         self.settings.pdf_reader = reader_type
         self.storage.save_settings(self.settings)
-        
+
         reader_name = "встроенная" if reader_type == "builtin" else "системная"
         self.page.snack_bar = ft.SnackBar(
             content=ft.Text(f"По умолчанию: {reader_name} читалка"),
@@ -816,7 +817,7 @@ class MyLibraryPage:
         )
         self.page.snack_bar.open = True
         self.page.update()
-    
+
     def _open_downloaded_book_folder(self, filename: str):
         """Открывает папку со скачанной книгой"""
         try:
@@ -883,7 +884,7 @@ class MyLibraryPage:
         self._save_saved_books()
         self.content = self._create_content()
         self.page.update()
-        
+
         if self.notification_manager:
             self.notification_manager.add_notification(
                 title="Книга удалена",
@@ -897,14 +898,14 @@ class MyLibraryPage:
         self._save_favorite_books()
         self.content = self._create_content()
         self.page.update()
-        
+
         if self.notification_manager:
             self.notification_manager.add_notification(
                 title="Удалено из избранного",
                 message="Книга удалена из списка избранных",
                 type="info"
             )
-    
+
     def build(self) -> ft.Control:
         """Возвращает содержимое страницы"""
         return self.content

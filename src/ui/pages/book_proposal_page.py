@@ -1,5 +1,6 @@
-import flet as ft
 import webbrowser
+
+import flet as ft
 
 
 class BookProposalPage:
@@ -24,23 +25,23 @@ class BookProposalPage:
                     ]),
                     padding=ft.padding.only(left=20, top=20, bottom=10)
                 ),
-                
+
                 ft.Divider(),
-                
+
                 # Основной контент
                 ft.Container(
                     content=ft.Column([
                         ft.Icon(ft.icons.LIGHTBULB_OUTLINE, size=48, color=ft.colors.PRIMARY),
-                        
+
                         ft.Text(
                             "Как предложить книгу?",
                             size=22,
                             weight=ft.FontWeight.BOLD,
                             text_align=ft.TextAlign.CENTER
                         ),
-                        
+
                         ft.Container(height=10),
-                        
+
                         ft.Container(
                             content=ft.Column([
                                 ft.Text("Чтобы предложить новую книгу в библиотеку, нужно:", size=14),
@@ -54,9 +55,9 @@ class BookProposalPage:
                             border_radius=12,
                             padding=20,
                         ),
-                        
+
                         ft.Container(height=10),
-                        
+
                         ft.Container(
                             content=ft.Column([
                                 ft.Text("Что нужно знать:", size=16, weight=ft.FontWeight.BOLD),
@@ -82,9 +83,9 @@ class BookProposalPage:
                             border_radius=12,
                             padding=20,
                         ),
-                        
+
                         ft.Container(height=20),
-                        
+
                         # Кнопка для перехода в Telegram
                         ft.Container(
                             content=ft.ElevatedButton(
@@ -100,14 +101,14 @@ class BookProposalPage:
                             ),
                             alignment=ft.alignment.center
                         ),
-                        
-                    ], 
+
+                    ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=0),
                     padding=ft.padding.symmetric(horizontal=40, vertical=20),
                     expand=True,
                 ),
-                
+
             ], scroll=ft.ScrollMode.AUTO),
             expand=True
         )

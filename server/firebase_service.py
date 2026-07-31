@@ -1,6 +1,5 @@
-import os
 import json
-from typing import Optional
+import os
 from datetime import datetime
 
 FIREBASE_PROJECT_ID = "nurbooks-3b694"
@@ -43,8 +42,21 @@ def is_ready() -> bool:
     return _firestore is not None
 
 
-def init_error() -> Optional[str]:
+def init_error() -> str | None:
     return _init_error
+
+
+def verify_token(id_token: str) -> str | None:
+    """Проверяет Firebase ID-токен и возвращает uid пользователя (или None)."""
+    if not id_token:
+        return None
+    try:
+        from firebase_admin import auth as firebase_auth
+        decoded = firebase_auth.verify_id_token(id_token)
+        return decoded.get("uid")
+    except Exception as e:
+        print(f"[Firebase] Token verification failed: {e}", flush=True)
+        return None
 
 
 _init_firebase()
@@ -96,7 +108,7 @@ def search_books(query: str) -> list:
     return results
 
 
-def get_book_by_pdf(pdf_path: str) -> Optional[dict]:
+def get_book_by_pdf(pdf_path: str) -> dict | None:
     docs = _firestore.collection("books").where("pdf", "==", pdf_path).limit(1).stream()
     for doc in docs:
         return doc.to_dict()
@@ -153,25 +165,33 @@ def add_bookmark(data: dict) -> dict:
         "bookId": data["bookId"],
         "page": data["page"],
         "timestamp": data.get("timestamp", datetime.now().isoformat()),
+        "userId": data.get("userId", "public"),
     }
     doc_ref.set(bookmark)
     return bookmark
 
 
-def get_bookmarks_by_book(book_id: int) -> list:
+def get_bookmarks_by_book(book_id: int, uid: str = "public") -> list:
     docs = _firestore.collection("bookmarks").where("bookId", "==", book_id).order_by("page").stream()
-    return [doc.to_dict() for doc in docs]
+    return [
+        doc.to_dict() for doc in docs
+        if doc.to_dict().get("userId", "public") == uid
+    ]
 
 
-def delete_bookmark(bookmark_id: str):
-    _firestore.collection("bookmarks").document(str(bookmark_id)).delete()
+def delete_bookmark(bookmark_id: str, uid: str = "public"):
+    doc = _firestore.collection("bookmarks").document(str(bookmark_id)).get()
+    if doc.exists and doc.to_dict().get("userId", "public") == uid:
+        doc.reference.delete()
 
 
-def all_bookmarks_with_books() -> list:
+def all_bookmarks_with_books(uid: str = "public") -> list:
     result = []
     docs = _firestore.collection("bookmarks").order_by("timestamp", direction="DESCENDING").stream()
     for doc in docs:
         bm = doc.to_dict()
+        if bm.get("userId", "public") != uid:
+            continue
         book = book_doc(bm.get("bookId"))
         if book:
             result.append({"bookmark": bm, "book": book})
@@ -180,23 +200,31 @@ def all_bookmarks_with_books() -> list:
 
 # ---- Reading Progress ----
 
-def save_reading_progress(book_id: int, page: int):
-    _firestore.collection("reading_progress").document(str(book_id)).set({
+def save_reading_progress(book_id: int, page: int, uid: str = "public"):
+    _firestore.collection("reading_progress").document(f"{uid}_{book_id}").set({
         "bookId": book_id,
         "page": page,
+        "userId": uid,
         "timestamp": datetime.now().isoformat(),
     })
 
 
-def get_reading_progress(book_id: int) -> Optional[int]:
-    doc = _firestore.collection("reading_progress").document(str(book_id)).get()
-    return doc.to_dict().get("page") if doc.exists else None
+def get_reading_progress(book_id: int, uid: str = "public") -> int | None:
+    doc = _firestore.collection("reading_progress").document(f"{uid}_{book_id}").get()
+    if doc.exists:
+        return doc.to_dict().get("page")
+    # Обратная совместимость: данные без userId
+    legacy = _firestore.collection("reading_progress").document(str(book_id)).get()
+    return legacy.to_dict().get("page") if legacy.exists else None
 
 
-def all_reading_progress() -> dict:
+def all_reading_progress(uid: str = "public") -> dict:
     result = {}
-    for doc in _firestore.collection("reading_progress").order_by("timestamp", direction="DESCENDING").stream():
+    docs = _firestore.collection("reading_progress").order_by("timestamp", direction="DESCENDING").stream()
+    for doc in docs:
         d = doc.to_dict()
+        if d.get("userId", "public") != uid:
+            continue
         result[d["bookId"]] = d.get("page", 0)
     return result
 

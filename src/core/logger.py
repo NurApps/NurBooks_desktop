@@ -4,8 +4,8 @@
 import logging
 import os
 import sys
-from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 
 def get_log_directory() -> str:
@@ -21,7 +21,7 @@ def get_log_directory() -> str:
     else:
         # Запущено из исходного кода
         base_path = Path(__file__).parent.parent.parent
-    
+
     log_dir = os.path.join(base_path, "logs")
     os.makedirs(log_dir, exist_ok=True)
     return log_dir
@@ -37,7 +37,7 @@ def setup_logger(
 ) -> logging.Logger:
     """
     Настраивает и возвращает логгер с указанным именем.
-    
+
     Args:
         name: Имя логгера (обычно __name__ модуля)
         level: Уровень логирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -45,7 +45,7 @@ def setup_logger(
         log_to_console: Выводить логи в консоль
         max_bytes: Максимальный размер одного файла лога (байты)
         backup_count: Количество хранимых файлов логов
-    
+
     Returns:
         Настроенный экземпляр logging.Logger
     """
@@ -67,7 +67,7 @@ def setup_logger(
         try:
             log_dir = get_log_directory()
             log_file = os.path.join(log_dir, f"{name}.log")
-            
+
             file_handler = RotatingFileHandler(
                 log_file,
                 maxBytes=max_bytes,
@@ -109,10 +109,10 @@ logger = setup_logger()
 def get_logger(name: str = None) -> logging.Logger:
     """
     Получает логгер с указанным именем.
-    
+
     Args:
         name: Имя логгера. Если None, возвращает логгер по умолчанию.
-    
+
     Returns:
         Экземпляр logging.Logger
     """

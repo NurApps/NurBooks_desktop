@@ -1,17 +1,18 @@
-import flet as ft
 import threading
-from typing import List, Optional
+
+import flet as ft
+
 from src.core.models import Book
-from src.ui.components.search_bar import SearchBar
 from src.ui.components.filters_panel import FiltersPanel
+from src.ui.components.search_bar import SearchBar
 
 
 class CatalogPage:
-    def __init__(self, page: ft.Page, books: List[Book], on_book_click=None):
+    def __init__(self, page: ft.Page, books: list[Book], on_book_click=None):
         self.page = page
         self.on_book_click = on_book_click
-        self.books: List[Book] = books
-        self.filtered_books: List[Book] = books.copy()
+        self.books: list[Book] = books
+        self.filtered_books: list[Book] = books.copy()
         self._search_timer = None
 
         self.filters_panel = FiltersPanel(on_filter_change=self._on_filter_change)

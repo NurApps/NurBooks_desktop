@@ -1,20 +1,19 @@
-import flet as ft
 import os
-import sys
-import subprocess
-from typing import Optional
-from src.core.models import Book
+
+import flet as ft
+
 from src.core.downloader import Downloader
-from src.core.notifications import NotificationManager
-from src.core.storage import Storage
 from src.core.logger import get_logger
+from src.core.models import Book
+from src.core.notifications import NotificationManager
 from src.core.statistics_manager import stats  # 🔥 Централизованный менеджер статистики
+from src.core.storage import Storage
 
 logger = get_logger(__name__)
 
 class BookViewPage:
     def __init__(self, page: ft.Page, book: Book,
-                 notification_manager: Optional[NotificationManager] = None,
+                 notification_manager: NotificationManager | None = None,
                  cart_widget = None,
                  on_back=None, on_read=None):
         self.page = page
@@ -94,7 +93,7 @@ class BookViewPage:
     def _load_favorite_books(self) -> list:
         """Загружает список избранных книг"""
         try:
-            with open("data/favorite_books.json", "r", encoding="utf-8") as f:
+            with open("data/favorite_books.json", encoding="utf-8") as f:
                 import json
                 return json.load(f)
         except FileNotFoundError:
@@ -110,7 +109,7 @@ class BookViewPage:
                 json.dump(self.favorite_books, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Ошибка сохранения избранного: {e}", exc_info=True)
-    
+
     def _find_downloaded_file(self) -> tuple[bool, str]:
         """
         Ищет скачанный файл книги в нескольких местах.
@@ -120,10 +119,10 @@ class BookViewPage:
         is_downloaded, filepath = self.downloader.is_book_downloaded(self.book)
         if is_downloaded and filepath and os.path.exists(filepath):
             return True, filepath
-        
+
         # Ищем вручную в разных папках
         possible_paths = []
-        
+
         # 1. Папка downloads-nurbooks
         nurbooks_path = os.path.join(os.path.expanduser("~/Downloads"), "downloads-nurbooks")
         if os.path.exists(nurbooks_path):
@@ -131,7 +130,7 @@ class BookViewPage:
                 if f.endswith('.pdf'):
                     if str(self.book.id) in f or self.book.title.replace(' ', '_')[:20] in f:
                         possible_paths.append(os.path.join(nurbooks_path, f))
-        
+
         # 2. Папка saved_books
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         saved_path = os.path.join(base_path, "saved_books")
@@ -140,7 +139,7 @@ class BookViewPage:
                 if f.endswith('.pdf'):
                     if str(self.book.id) in f or self.book.title.replace(' ', '_')[:20] in f:
                         possible_paths.append(os.path.join(saved_path, f))
-        
+
         # 3. Папка pdfs
         pdfs_path = os.path.join(base_path, "pdfs")
         if os.path.exists(pdfs_path):
@@ -148,12 +147,12 @@ class BookViewPage:
                 if f.endswith('.pdf'):
                     if str(self.book.id) in f or self.book.title.replace(' ', '_')[:20] in f:
                         possible_paths.append(os.path.join(pdfs_path, f))
-        
+
         # Проверяем найденные файлы
         for path in possible_paths:
             if os.path.exists(path) and os.path.getsize(path) > 0:
                 return True, path
-        
+
         return False, ""
 
     def _is_book_in_favorites(self) -> bool:
@@ -179,7 +178,7 @@ class BookViewPage:
         self.favorite_button.icon_color = ft.colors.AMBER if is_favorite else None
         self.favorite_button.tooltip = "В избранное" if not is_favorite else "Удалить из избранного"
         self.page.update()
-    
+
     def _create_content(self) -> ft.Control:
         """Создает содержимое страницы книги"""
         # Проверяем, скачана ли книга (уже проверено в __init__)
@@ -200,9 +199,9 @@ class BookViewPage:
                     ]),
                     padding=ft.padding.only(left=20, right=20, top=20, bottom=10)
                 ),
-                
+
                 ft.Divider(),
-                
+
                 # Основная информация о книге
                 ft.Container(
                     content=ft.Row([
@@ -221,7 +220,7 @@ class BookViewPage:
                                     ),
                                     margin=ft.margin.only(bottom=20)
                                 ),
-                                
+
                                 # Быстрые кнопки под обложкой
                                 ft.Row([
                                     ft.ElevatedButton(
@@ -237,7 +236,7 @@ class BookViewPage:
                             width=350,
                             margin=ft.margin.only(right=30)
                         ),
-                        
+
                         # Детальная информация
                         ft.Container(
                             content=ft.Column([
@@ -258,9 +257,9 @@ class BookViewPage:
                                     size=18,
                                     color=ft.colors.PRIMARY
                                 ),
-                                
+
                                 ft.Divider(),
-                                
+
                                 # Метки
                                 ft.Row([
                                     ft.Container(
@@ -291,7 +290,7 @@ class BookViewPage:
                                         border_radius=20
                                     ),
                                 ], spacing=10, wrap=True),
-                                
+
                                 # Описание
                                 ft.Container(
                                     content=ft.Column([
@@ -324,7 +323,7 @@ class BookViewPage:
                                     ], spacing=10),
                                     padding=ft.padding.only(top=20)
                                 ),
-                                
+
                                 # Кнопки основных действий
                                 ft.Container(
                                     content=ft.Row([
@@ -343,7 +342,7 @@ class BookViewPage:
                                     ], spacing=20),
                                     padding=ft.padding.only(top=30)
                                 ),
-                                
+
                                 # Дополнительная информация
                                 ft.Container(
                                     content=ft.ExpansionTile(
@@ -384,10 +383,10 @@ class BookViewPage:
                     ]),
                     padding=ft.padding.all(30)
                 ),
-                
+
                 # Рекомендуемые книги (если есть)
                 self._create_recommendations_section(),
-                
+
             ], scroll=ft.ScrollMode.AUTO),
             expand=True
 
@@ -398,19 +397,19 @@ class BookViewPage:
         """Обработчик кнопки 'Читать' - проверяет скачивание и показывает диалог выбора читалки"""
         # Проверяем, скачана ли книга
         is_downloaded, filepath = self.downloader.is_book_downloaded(self.book)
-        
+
         # Если не найдено, пробуем искать вручную
         if not is_downloaded or not filepath:
             is_downloaded, filepath = self._find_downloaded_file()
-        
+
         if not is_downloaded or not filepath:
             # Книга не скачана - показываем уведомление
             self._show_download_required_dialog()
             return
-        
+
         # Перечитываем настройки для актуальности
         self.settings = self.storage.load_settings()
-        
+
         # Книга скачана - показываем диалог выбора читалки или открываем сразу
         if self.settings.pdf_reader == "builtin":
             # Открыть во встроенной читалке
@@ -422,7 +421,7 @@ class BookViewPage:
         else:
             # Показать диалог выбора
             self._show_reader_choice_dialog(filepath)
-    
+
     def _show_download_required_dialog(self):
         """Показывает диалог о необходимости скачивания"""
         dlg = ft.AlertDialog(
@@ -446,7 +445,7 @@ class BookViewPage:
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.open(dlg)
-    
+
     def _show_reader_choice_dialog(self, filepath: str):
         """Показывает диалог выбора читалки"""
         dlg = ft.AlertDialog(
@@ -492,12 +491,12 @@ class BookViewPage:
             actions_alignment=ft.MainAxisAlignment.CENTER,
         )
         self.page.open(dlg)
-    
+
     def _save_reader_preference(self, reader_type: str):
         """Сохраняет предпочтение читалки"""
         self.settings.pdf_reader = reader_type
         self.storage.save_settings(self.settings)
-        
+
         reader_name = "встроенная" if reader_type == "builtin" else "системная"
         self.page.snack_bar = ft.SnackBar(
             content=ft.Text(f"По умолчанию: {reader_name} читалка"),
@@ -506,12 +505,12 @@ class BookViewPage:
         )
         self.page.snack_bar.open = True
         self.page.update()
-    
+
     def _close_dialog(self, dlg=None):
         """Закрывает диалог"""
         if dlg:
             self.page.close(dlg)
-        
+
     def _create_recommendations_section(self) -> ft.Control:
         """Создает раздел с рекомендованными книгами"""
         # TODO: Добавить логику получения рекомендаций на основе категории/автора
@@ -525,21 +524,21 @@ class BookViewPage:
             padding=20,
             alignment=ft.alignment.center,
         )
-    
+
     def _on_back_click(self, e):
         """Обработчик кнопки назад"""
         if self.on_back:
             self.on_back()
-    
+
     def _on_download_click(self, e):
         """Обработчик скачивания книги"""
         # Сначала проверяем, не скачана ли книга уже
         is_downloaded, filepath = self.downloader.is_book_downloaded(self.book)
-        
+
         # Если не найдено, пробуем искать вручную
         if not is_downloaded or not filepath:
             is_downloaded, filepath = self._find_downloaded_file()
-        
+
         if is_downloaded and filepath:
             self._update_read_button_visibility(True)
             # Книга уже скачана, предлагаем открыть или открыть папку
@@ -562,7 +561,7 @@ class BookViewPage:
             self.page.snack_bar.open = True
             self.page.update()
             return
-        
+
         try:
             filepath = self.downloader.download_book(self.book)
             stats.increment_download_count(self.book.id)
@@ -590,7 +589,7 @@ class BookViewPage:
             )
             self.page.snack_bar.open = True
             self.page.update()
-            
+
             # Обновляем видимость кнопки "Читать"
             self._update_read_button_visibility(True)
 
@@ -611,7 +610,7 @@ class BookViewPage:
             )
             self.page.snack_bar.open = True
             self.page.update()
-    
+
     def _update_read_button_visibility(self, is_downloaded: bool):
         """Обновляет видимость кнопок после скачивания"""
         if self.read_button:
@@ -662,7 +661,7 @@ class BookViewPage:
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.open(dlg)
-    
+
     def _open_downloaded_book(self, filepath: str):
         """Открывает скачанную книгу"""
         try:
@@ -679,35 +678,35 @@ class BookViewPage:
                 os.startfile(download_path) if os.name == 'nt' else os.system(f'xdg-open "{download_path}"')
         except Exception as e:
             logger.error(f"Ошибка открытия папки '{download_path}': {e}", exc_info=True)
-    
+
     def _on_save_click(self, e):
         """Обработчик сохранения в библиотеку"""
         # Сохраняем книгу в JSON файл
         try:
             import json
             saved_books_file = "data/saved_books.json"
-            
+
             # Загружаем существующие сохраненные книги
             saved_books = []
             if os.path.exists(saved_books_file):
-                with open(saved_books_file, 'r', encoding='utf-8') as f:
+                with open(saved_books_file, encoding='utf-8') as f:
                     saved_books = json.load(f)
-            
+
             # Проверяем, нет ли уже этой книги
             if str(self.book.id) not in saved_books:
                 saved_books.append(str(self.book.id))
-                
+
                 # Сохраняем обратно
                 with open(saved_books_file, 'w', encoding='utf-8') as f:
                     json.dump(saved_books, f, ensure_ascii=False, indent=2)
-                
+
                 if self.notification_manager:
                     self.notification_manager.add_notification(
                         title="Книга добавлена",
                         message=f"Книга '{self.book.title}' добавлена в вашу библиотеку",
                         type="success"
                     )
-                
+
                 self.page.snack_bar = ft.SnackBar(
                     content=ft.Row([
                         ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN),
@@ -720,10 +719,10 @@ class BookViewPage:
                     content=ft.Text("Эта книга уже в вашей библиотеке"),
                     action="OK"
                 )
-            
+
             self.page.snack_bar.open = True
             self.page.update()
-            
+
         except Exception as e:
             self.page.snack_bar = ft.SnackBar(
                 content=ft.Text(f"Ошибка при сохранении: {str(e)}"),
@@ -731,7 +730,7 @@ class BookViewPage:
             )
             self.page.snack_bar.open = True
             self.page.update()
-    
+
     def _on_add_to_cart_click(self, e):
         """Добавляет книгу в корзину"""
         if self.cart_widget and self.cart_widget.add_book(self.book):
@@ -741,7 +740,7 @@ class BookViewPage:
                     message=f"Книга '{self.book.title}' добавлена в корзину",
                     type="success"
                 )
-            
+
             self.page.snack_bar = ft.SnackBar(
                 content=ft.Text(f"Книга '{self.book.title}' добавлена в корзину!"),
                 action="OK"
@@ -751,15 +750,15 @@ class BookViewPage:
                 content=ft.Text("Эта книга уже в корзине"),
                 action="OK"
             )
-        
+
         self.page.snack_bar.open = True
         self.page.update()
-    
+
     def _on_favorite_click(self, e):
         """Переключает статус избранного для книги"""
         try:
             book_id = str(self.book.id)
-            
+
             # Проверяем, есть ли книга уже в избранном
             if book_id in self.favorite_books:
                 # Удаляем из избранного
@@ -769,13 +768,13 @@ class BookViewPage:
                 # Добавляем в избранное
                 self.favorite_books.append(book_id)
                 message = f"Книга '{self.book.title}' добавлена в избранное"
-            
+
             # Сохраняем изменения
             self._save_favorite_books()
-            
+
             # Обновляем кнопку
             self._toggle_favorite_button()
-            
+
             # Показываем сообщение
             self.page.snack_bar = ft.SnackBar(
                 content=ft.Text(message),
@@ -791,7 +790,7 @@ class BookViewPage:
             )
             self.page.snack_bar.open = True
             self.page.update()
-    
+
     def build(self) -> ft.Control:
         """Возвращает содержимое страницы"""
         return self.content

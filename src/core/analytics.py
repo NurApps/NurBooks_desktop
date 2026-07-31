@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 class Analytics:
@@ -10,12 +10,12 @@ class Analytics:
     def init_db(self):
         pass
 
-    def log_view(self, book_id: int, user_id: Optional[str] = None,
-                 ip_address: Optional[str] = None) -> bool:
+    def log_view(self, book_id: int, user_id: str | None = None,
+                 ip_address: str | None = None) -> bool:
         return True
 
-    def log_download(self, book_id: int, file_size: Optional[str] = None,
-                     user_id: Optional[str] = None, ip_address: Optional[str] = None) -> bool:
+    def log_download(self, book_id: int, file_size: str | None = None,
+                     user_id: str | None = None, ip_address: str | None = None) -> bool:
         return True
 
     def get_views_count(self, book_id: int) -> int:
@@ -24,7 +24,7 @@ class Analytics:
     def get_downloads_count(self, book_id: int) -> int:
         return 0
 
-    def get_book_statistics(self, book_id: int) -> Dict[str, Any]:
+    def get_book_statistics(self, book_id: int) -> dict[str, Any]:
         return {'book_id': book_id, 'views': 0, 'downloads': 0, 'view_to_download_ratio': 0}
 
     def track_book_added(self, book) -> None:

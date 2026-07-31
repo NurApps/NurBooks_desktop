@@ -1,31 +1,145 @@
-"""
+﻿"""
 HTTP-клиент к NurBooks API Server (Firebase через сервер).
+Включает аутентификацию через Firebase Identity Toolkit (REST).
 """
-from typing import Optional, List, Dict, Any
-import urllib.request
-import urllib.error
 import json
-from src.core.models import Book, Bookmark
+import os
+import time
+import urllib.error
+import urllib.request
+from typing import Any
+
+from src.config import API_BASE_URL, DEFAULT_DATA_PATH, FirebaseConfig
+from src.config import API_KEY as CONFIG_API_KEY
 from src.core.logger import get_logger
-from src.config import API_BASE_URL, API_KEY as CONFIG_API_KEY
+from src.core.models import Book, Bookmark
 
 logger = get_logger(__name__)
 
 API_BASE = API_BASE_URL.rstrip("/")
 API_KEY = CONFIG_API_KEY
 
+_AUTH_TOKEN_FILE = os.path.join(DEFAULT_DATA_PATH, "auth.json")
+_IDENTITY_TOOLKIT_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
+
+
+class _AuthSession:
+    """Хранит ID-токен Firebase Auth и текущего пользователя (в памяти + на диске)."""
+
+    def __init__(self):
+        self._id_token: str | None = None
+        self._uid: str | None = None
+        self._email: str | None = None
+        self._expires_at: float = 0
+        self._load()
+
+    def _load(self):
+        try:
+            with open(_AUTH_TOKEN_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+            self._id_token = data.get("id_token")
+            self._uid = data.get("uid")
+            self._email = data.get("email")
+            self._expires_at = data.get("expires_at", 0)
+        except Exception:
+            pass
+
+    def _save(self):
+        try:
+            os.makedirs(os.path.dirname(_AUTH_TOKEN_FILE), exist_ok=True)
+            with open(_AUTH_TOKEN_FILE, "w", encoding="utf-8") as f:
+                json.dump({
+                    "id_token": self._id_token,
+                    "uid": self._uid,
+                    "email": self._email,
+                    "expires_at": self._expires_at,
+                }, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"Не удалось сохранить auth-сессию: {e}")
+
+    @property
+    def token(self) -> str | None:
+        if self._id_token and time.time() < self._expires_at:
+            return self._id_token
+        return None
+
+    @property
+    def uid(self) -> str | None:
+        return self._uid if self.token else None
+
+    @property
+    def email(self) -> str | None:
+        return self._email
+
+    def set(self, id_token: str, uid: str, email: str | None, expires_in: int):
+        self._id_token = id_token
+        self._uid = uid
+        self._email = email
+        self._expires_at = time.time() + expires_in
+        self._save()
+
+    def clear(self):
+        self._id_token = None
+        self._uid = None
+        self._email = None
+        self._expires_at = 0
+        self._save()
+
+
+auth_session = _AuthSession()
+
+
+def _auth_headers() -> dict:
+    headers = {}
+    token = auth_session.token
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _auth_request(endpoint: str, payload: dict) -> dict | None:
+    """Запрос к Firebase Identity Toolkit (signUp / signInWithPassword)."""
+    url = f"{_IDENTITY_TOOLKIT_URL}:{endpoint}?key={FirebaseConfig.API_KEY}"
+    req = urllib.request.Request(
+        url, data=json.dumps(payload).encode(), method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        resp = urllib.request.urlopen(req, timeout=10)
+        return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        try:
+            error = json.loads(body).get("error", {}).get("message", body)
+        except Exception:
+            error = body
+        logger.error(f"Firebase Auth {endpoint} error {e.code}: {error}")
+        return None
+    except Exception as e:
+        logger.error(f"Firebase Auth {endpoint} error: {e}")
+        return None
+
+
+def _api_key_headers() -> dict:
+    headers = {}
+    if API_KEY:
+        headers["X-API-Key"] = API_KEY
+    return headers
+
+
+def _request_headers() -> dict:
+    return {**_auth_headers(), **_api_key_headers()}
+
 
 def _url(path: str) -> str:
     return f"{API_BASE}{path}"
 
 
-def _get(path: str) -> Optional[Any]:
+def _get(path: str) -> Any | None:
     try:
         url = _url(path)
-        if API_KEY:
-            sep = "&" if "?" in path else "?"
-            url += f"{sep}api_key={API_KEY}"
-        resp = urllib.request.urlopen(url, timeout=10)
+        req = urllib.request.Request(url, headers=_request_headers())
+        resp = urllib.request.urlopen(req, timeout=10)
         return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
         if e.code == 404:
@@ -37,15 +151,12 @@ def _get(path: str) -> Optional[Any]:
         return None
 
 
-def _post(path: str, data: dict = None) -> Optional[Any]:
+def _post(path: str, data: dict = None) -> Any | None:
     try:
         url = _url(path)
-        if API_KEY:
-            sep = "&" if "?" in path else "?"
-            url += f"{sep}api_key={API_KEY}"
         body = json.dumps(data).encode() if data else b"{}"
-        req = urllib.request.Request(url, data=body, method="POST",
-                                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json", **_request_headers()}
+        req = urllib.request.Request(url, data=body, method="POST", headers=headers)
         resp = urllib.request.urlopen(req, timeout=10)
         return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
@@ -56,15 +167,12 @@ def _post(path: str, data: dict = None) -> Optional[Any]:
         return None
 
 
-def _put(path: str, data: dict = None) -> Optional[Any]:
+def _put(path: str, data: dict = None) -> Any | None:
     try:
         url = _url(path)
-        if API_KEY:
-            sep = "&" if "?" in path else "?"
-            url += f"{sep}api_key={API_KEY}"
         body = json.dumps(data).encode() if data else b"{}"
-        req = urllib.request.Request(url, data=body, method="PUT",
-                                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json", **_request_headers()}
+        req = urllib.request.Request(url, data=body, method="PUT", headers=headers)
         resp = urllib.request.urlopen(req, timeout=10)
         return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
@@ -78,10 +186,7 @@ def _put(path: str, data: dict = None) -> Optional[Any]:
 def _delete(path: str) -> bool:
     try:
         url = _url(path)
-        if API_KEY:
-            sep = "&" if "?" in path else "?"
-            url += f"{sep}api_key={API_KEY}"
-        req = urllib.request.Request(url, method="DELETE")
+        req = urllib.request.Request(url, method="DELETE", headers=_request_headers())
         resp = urllib.request.urlopen(req, timeout=10)
         return resp.status == 200
     except Exception as e:
@@ -124,20 +229,20 @@ class FirebaseClient:
             download_count=d.get("downloadCount", 0),
         )
 
-    def get_book_by_id(self, book_id: int) -> Optional[Book]:
+    def get_book_by_id(self, book_id: int) -> Book | None:
         data = _get(f"/books/{book_id}")
         return self._dict_to_book(data) if data else None
 
-    def get_book_by_pdf(self, pdf_path: str) -> Optional[Book]:
+    def get_book_by_pdf(self, pdf_path: str) -> Book | None:
         import urllib.parse
         data = _get(f"/books/by-pdf?path={urllib.parse.quote(pdf_path)}")
         return self._dict_to_book(data) if data else None
 
-    def get_all_books(self) -> List[Book]:
+    def get_all_books(self) -> list[Book]:
         data = _get("/books")
         return [self._dict_to_book(b) for b in data] if data else []
 
-    def search_books(self, query: str) -> List[Book]:
+    def search_books(self, query: str) -> list[Book]:
         import urllib.parse
         data = _get(f"/books/search?q={urllib.parse.quote(query)}")
         return [self._dict_to_book(b) for b in data] if data else []
@@ -197,11 +302,11 @@ class FirebaseClient:
         result = _post(f"/books/{book_id}/download")
         return result is not None
 
-    def get_book_statistics(self, book_id: int) -> Dict[str, Any]:
+    def get_book_statistics(self, book_id: int) -> dict[str, Any]:
         data = _get(f"/books/{book_id}/statistics")
         return data or {"view_count": 0, "download_count": 0, "view_to_download_ratio": 0}
 
-    def log_analytics_event(self, event_type: str, book_id: int, metadata: Dict[str, Any] = None) -> bool:
+    def log_analytics_event(self, event_type: str, book_id: int, metadata: dict[str, Any] = None) -> bool:
         result = _post("/analytics/events", {
             "eventType": event_type,
             "bookId": book_id,
@@ -209,7 +314,7 @@ class FirebaseClient:
         })
         return result is not None
 
-    def get_book_analytics(self, book_id: int) -> Dict[str, Any]:
+    def get_book_analytics(self, book_id: int) -> dict[str, Any]:
         data = _get(f"/analytics/books/{book_id}")
         return data or {}
 
@@ -223,10 +328,10 @@ class FirebaseClient:
         })
         return result is not None
 
-    def get_bookmark_by_id(self, bookmark_id) -> Optional[Bookmark]:
+    def get_bookmark_by_id(self, bookmark_id) -> Bookmark | None:
         return None  # not exposed via API
 
-    def get_bookmarks_by_book(self, book_id: int) -> List[Bookmark]:
+    def get_bookmarks_by_book(self, book_id: int) -> list[Bookmark]:
         data = _get(f"/bookmarks?book_id={book_id}")
         if not data:
             return []
@@ -235,7 +340,7 @@ class FirebaseClient:
     def delete_bookmark(self, bookmark_id) -> bool:
         return _delete(f"/bookmarks/{bookmark_id}")
 
-    def get_all_bookmarks_with_books(self) -> List:
+    def get_all_bookmarks_with_books(self) -> list:
         data = _get("/bookmarks/with-books")
         if not data:
             return []
@@ -267,7 +372,7 @@ class FirebaseClient:
 
     # ---- Authors ----
 
-    def get_all_authors(self) -> List[dict]:
+    def get_all_authors(self) -> list[dict]:
         data = _get("/authors")
         return data or []
 
@@ -279,23 +384,53 @@ class FirebaseClient:
             return "id_exists"
         return "success"
 
-    def save_authors(self, authors_data: List[dict]) -> bool:
+    def save_authors(self, authors_data: list[dict]) -> bool:
         result = _put("/authors", authors_data)
         return result is not None
 
-    # ---- Auth (no-op via API) ----
+    # ---- Auth (Firebase Identity Toolkit через REST) ----
 
-    def sign_in_anonymous(self) -> Optional[str]:
-        return None
+    def sign_in_anonymous(self) -> str | None:
+        """Анонимный вход. Возвращает uid или None."""
+        data = _auth_request("signUp", {"returnSecureToken": True})
+        if not data or not data.get("idToken"):
+            return None
+        auth_session.set(
+            id_token=data["idToken"],
+            uid=data["localId"],
+            email=None,
+            expires_in=int(data.get("expiresIn", 3600)),
+        )
+        logger.info(f"Анонимный вход: uid={auth_session.uid}")
+        return auth_session.uid
 
-    def sign_in_with_email(self, email: str, password: str) -> Optional[str]:
-        return None
+    def sign_in_with_email(self, email: str, password: str) -> str | None:
+        """Вход по email/паролю. Возвращает uid или None."""
+        data = _auth_request("signInWithPassword", {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True,
+        })
+        if not data or not data.get("idToken"):
+            return None
+        auth_session.set(
+            id_token=data["idToken"],
+            uid=data["localId"],
+            email=data.get("email", email),
+            expires_in=int(data.get("expiresIn", 3600)),
+        )
+        logger.info(f"Вход по email: uid={auth_session.uid}")
+        return auth_session.uid
 
     def sign_out(self) -> bool:
+        auth_session.clear()
+        logger.info("Выход из аккаунта")
         return True
 
-    def get_current_user(self) -> Optional[dict]:
-        return None
+    def get_current_user(self) -> dict | None:
+        if not auth_session.token:
+            return None
+        return {"uid": auth_session.uid, "email": auth_session.email}
 
 
 firebase_client = FirebaseClient()

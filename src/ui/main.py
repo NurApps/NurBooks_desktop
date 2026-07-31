@@ -1,33 +1,34 @@
-import flet as ft
-import sys
 import os
+import sys
 import threading
-from typing import Optional
+
+import flet as ft
 
 # Добавляем корневую директорию проекта в путь
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from src.ui.pages.catalog_page import CatalogPage
-from src.ui.pages.book_view import BookViewPage
-from src.ui.pages.authors_page import AuthorsPage
-from src.ui.pages.my_library import MyLibraryPage
-from src.ui.pages.settings_page import SettingsPage
-from src.ui.pages.about_page import AboutPage
-from src.ui.pages.book_proposal_page import BookProposalPage
+from src.config import APP_NAME, APP_VERSION
+from src.core.downloader import Downloader
+from src.core.firebase_client import firebase_client
+from src.core.models import Book
+from src.core.notifications import NotificationManager
+from src.core.storage import Storage
 from src.ui.components.cart_widget import CartWidget
 from src.ui.components.notifications_panel import NotificationsPanel
-from src.core.notifications import NotificationManager
+from src.ui.pages.about_page import AboutPage
+from src.ui.pages.authors_page import AuthorsPage
+from src.ui.pages.book_proposal_page import BookProposalPage
+from src.ui.pages.book_view import BookViewPage
+from src.ui.pages.catalog_page import CatalogPage
+from src.ui.pages.my_library import MyLibraryPage
 from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
-from src.core.storage import Storage
-from src.core.downloader import Downloader
-from src.core.models import Book
-from src.core.firebase_client import firebase_client
-from src.config import APP_NAME, APP_VERSION
+from src.ui.pages.settings_page import SettingsPage
+
 
 def resource_path(relative_path):
     base_path = getattr(sys, '_MEIPASS', None) or os.path.abspath(".")
     return os.path.join(base_path, relative_path)
-class NurBooksApp:  
+class NurBooksApp:
     def __init__(self, page: ft.Page):
         self.page = page
         self.page.title = f"{APP_NAME} v{APP_VERSION}"
@@ -53,12 +54,12 @@ class NurBooksApp:
         self.notification_manager.set_enabled(getattr(self.settings, "background_notifications", True))
         if self.settings.theme == "dark":
             self.page.theme_mode = ft.ThemeMode.DARK
-        
+
         # Состояние приложения
         self.current_page = "catalog"
         self.selected_book = None
         self.selected_author = None
-        
+
         # Инициализация корзины
         self.cart_widget = CartWidget(
             on_download_all=self._on_cart_download,
@@ -66,15 +67,15 @@ class NurBooksApp:
             on_close=self._close_cart
         )
         self.cart_visible = False
-        
+
         # Создание навигации
         self.nav_rail = self._create_navigation_rail()
         self.notification_panel = self._create_notification_panel()
         self.top_app_bar = self._create_top_app_bar()
-        
+
         # Основной контейнер
         self.main_content = ft.Container(expand=True)
-        
+
         # Контейнер для панели уведомлений
         self.notification_panel_container = ft.Container(
             content=self.notification_panel,
@@ -82,7 +83,7 @@ class NurBooksApp:
             visible=False,
             bgcolor=ft.colors.BACKGROUND
         )
-        
+
         # Контейнер для корзины
         self.cart_container = ft.Container(
             content=self.cart_widget.build(),
@@ -91,16 +92,16 @@ class NurBooksApp:
             visible=False,
             animate_position=ft.animation.Animation(300, ft.AnimationCurve.EASE_IN_OUT)
         )
-        
+
         # Инициализация начальной страницы (синхронно, page.add ещё не вызван)
         self._build_catalog_page()
-        
+
         # Создание основного макета
         self.page.add(
             ft.Column([
                 # Верхняя панель
                 self.top_app_bar,
-                
+
                 # Основная область
                 ft.Stack([
                     ft.Row([
@@ -110,17 +111,17 @@ class NurBooksApp:
                             width=95,
                             bgcolor=ft.colors.SURFACE_VARIANT
                         ),
-                        
+
                         # Основное содержимое
                         ft.Container(
                             content=self.main_content,
                             expand=True
                         ),
-                        
+
                         # Панель уведомлений (скрыта по умолчанию)
                         self.notification_panel_container,
                     ], expand=True),
-                    
+
                     # Корзина (поверх основного содержимого)
                     self.cart_container
                 ], expand=True),
@@ -131,12 +132,13 @@ class NurBooksApp:
         if getattr(self.settings, "auto_update", False):
             self._check_updates_background()
 
-    
+
     def _check_updates_background(self):
         """Проверяет обновление в фоне, если есть — показывает уведомление."""
         import threading
-        from src.core.updater import check_latest, is_newer
+
         from src.config import APP_VERSION as CURR_VER
+        from src.core.updater import check_latest, is_newer
 
         def _bg():
             try:
@@ -164,7 +166,7 @@ class NurBooksApp:
             # Очищаем все временные PDF файлы
             on_app_exit()
             self.page.window.close()
-    
+
     def _create_top_app_bar(self) -> ft.Control:
         """Создает верхнюю панель приложения"""
         online = firebase_client.is_initialized()
@@ -196,9 +198,9 @@ class NurBooksApp:
                     ft.Text(APP_NAME, size=20, weight=ft.FontWeight.BOLD),
                     self._firebase_indicator,
                 ]),
-                
+
                 ft.Container(expand=True),
-                
+
                 # Кнопки действий
                 ft.Row([
                     # Кнопка уведомлений с бейджем
@@ -228,7 +230,7 @@ class NurBooksApp:
                             key="notification_badge"
                         )
                     ]),
-                    
+
                     # Кнопка корзины с бейджем
                     ft.Stack([
                         ft.IconButton(
@@ -256,7 +258,7 @@ class NurBooksApp:
                             key="cart_badge"
                         )
                     ]),
-                    
+
                     # Кнопка темы
                     ft.IconButton(
                         icon=ft.icons.BRIGHTNESS_4,
@@ -276,7 +278,7 @@ class NurBooksApp:
             bgcolor=ft.colors.SURFACE_VARIANT,
             border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.OUTLINE))
         )
-    
+
     def _create_navigation_rail(self) -> ft.NavigationRail:
         """Создает навигационную панель"""
         return ft.NavigationRail(
@@ -319,7 +321,7 @@ class NurBooksApp:
             ],
             on_change=self._on_navigation_change
         )
-    
+
     def _create_notification_panel(self) -> ft.Control:
         """Создает панель уведомлений"""
         self.notifications_component = NotificationsPanel(
@@ -363,7 +365,7 @@ class NurBooksApp:
         if hasattr(self, 'notification_list_container'):
             self.notification_list_container.content = self.notifications_component.build()
         self._update_notification_badge()
-    
+
     def _update_notification_badge(self):
         """Обновляет бейдж уведомлений"""
         unread_count = self.notification_manager.get_unread_count()
@@ -371,7 +373,7 @@ class NurBooksApp:
         if hasattr(self, 'top_app_bar') and hasattr(self.top_app_bar, 'content'):
             # Обновляем через перебор элементов
             self._update_badge_in_container(self.top_app_bar, unread_count)
-    
+
     def _update_badge_in_container(self, container, count):
         """Рекурсивно находит и обновляет бейдж уведомлений"""
         try:
@@ -382,7 +384,7 @@ class NurBooksApp:
                     container.width = None
                     container.padding = ft.padding.symmetric(horizontal=4)
                 return True
-            
+
             if hasattr(container, 'content'):
                 if isinstance(container.content, (list, tuple)):
                     for item in container.content:
@@ -390,12 +392,12 @@ class NurBooksApp:
                             return True
                 elif self._update_badge_in_container(container.content, count):
                     return True
-            
+
             if hasattr(container, 'controls'):
                 for control in container.controls:
                     if self._update_badge_in_container(control, count):
                         return True
-            
+
             if hasattr(container, 'rows'):
                 for row in container.rows:
                     if self._update_badge_in_container(row, count):
@@ -403,7 +405,7 @@ class NurBooksApp:
         except Exception:
             pass
         return False
-    
+
     def _update_cart_badge(self):
         """Обновляет бейдж корзины"""
         cart_count = len(self.cart_widget.get_all_books())
@@ -465,7 +467,7 @@ class NurBooksApp:
         """Показывает/скрывает корзину"""
         self.cart_visible = not self.cart_visible
         self.cart_container.visible = self.cart_visible
-        
+
         # Обновляем содержимое корзины
         if self.cart_visible:
             self.cart_widget._update_cart()
@@ -475,7 +477,7 @@ class NurBooksApp:
         self._update_cart_badge()
         if update_ui:
             self.page.update()
-    
+
     def _close_cart(self, e=None, update_ui: bool = True):
         """Закрывает корзину"""
         self.cart_visible = False
@@ -483,7 +485,7 @@ class NurBooksApp:
         self._update_cart_badge()
         if update_ui:
             self.page.update()
-    
+
     def _toggle_theme(self, e=None):
         """Переключает тему"""
         if self.page.theme_mode == ft.ThemeMode.LIGHT:
@@ -492,26 +494,26 @@ class NurBooksApp:
         else:
             self.page.theme_mode = ft.ThemeMode.LIGHT
             self.settings.theme = "light"
-        
+
         self.storage.save_settings(self.settings)
         self.page.update()
-    
+
     def _clear_all_notifications(self, e=None):
         """Очищает все уведомления"""
         self.notification_manager.clear_notifications()
         self._update_notification_panel()
         self.page.update()
-    
+
     def _remove_notification(self, notification_id: int):
         """Удаляет конкретное уведомление"""
         self.notification_manager.remove_notification(notification_id)
         self._update_notification_panel()
         self.page.update()
-    
+
     def _show_notification_detail(self, notification):
         """Показывает детальное окно уведомления"""
         from src.ui.components.notifications_panel import NotificationDetailDialog
-        
+
         detail_dialog = NotificationDetailDialog(
             notification=notification,
             on_close=self._close_notification_dialog,
@@ -519,25 +521,25 @@ class NurBooksApp:
         )
         self.active_notification_dialog = detail_dialog.build()
         self.page.open(self.active_notification_dialog)
-    
+
     def _close_notification_dialog(self, e=None):
         """Закрывает диалоговое окно уведомления"""
         if hasattr(self, 'active_notification_dialog') and self.active_notification_dialog:
             self.page.close(self.active_notification_dialog)
             self.active_notification_dialog = None
-    
+
     def _delete_notification_from_detail(self, notification_id: int):
         """Удаляет уведомление из детального просмотра"""
         self._close_notification_dialog()
         self.notification_manager.remove_notification(notification_id)
         self._update_notification_panel()
         self.page.update()
-    
+
     def _update_notifications(self, e=None):
         """Обновляет уведомления"""
         self._update_notification_panel()
         self.page.update()
-    
+
     def _on_navigation_change(self, e):
         """Обработчик изменения навигации"""
         index = e.control.selected_index
@@ -557,7 +559,7 @@ class NurBooksApp:
 
         self.nav_rail.selected_index = index
         self.page.update()
-    
+
     def _show_loading(self, message: str = "Загрузка..."):
         """Показывает индикатор загрузки"""
         self.main_content.content = ft.Container(
@@ -609,7 +611,7 @@ class NurBooksApp:
         self.current_page = "proposal"
         if update_ui:
             self.page.update()
-    
+
     def _show_authors_page(self, update_ui: bool = True):
         self.current_page = "authors"
         self._load_page_async("authors",
@@ -622,7 +624,7 @@ class NurBooksApp:
         ap = AuthorsPage(page=self.page, authors=authors, on_author_click=self._on_author_selected)
         self.main_content.content = ap.build()
         self.current_page = "authors"
-    
+
     def _show_my_library_page(self, update_ui: bool = True):
         self.current_page = "library"
         self._load_page_async("library", lambda: self._build_library_page())
@@ -632,7 +634,7 @@ class NurBooksApp:
                            on_read_book=self._show_pdf_reader)
         self.main_content.content = lp.build()
         self.current_page = "library"
-    
+
     def _show_settings_page(self, update_ui: bool = True):
         """Показывает страницу настроек"""
         settings_page = SettingsPage(
@@ -643,7 +645,7 @@ class NurBooksApp:
         self.current_page = "settings"
         if update_ui:
             self.page.update()
-    
+
     def _show_about_page(self, update_ui: bool = True):
         """Показывает страницу о приложении"""
         about_page = AboutPage(page=self.page)
@@ -651,7 +653,7 @@ class NurBooksApp:
         self.current_page = "about"
         if update_ui:
             self.page.update()
-    
+
     def _exit_app(self, e=None):
         """Корректный выход из приложения."""
         try:
@@ -734,11 +736,11 @@ class NurBooksApp:
         self.page.open(dlg)
         self.page.update()
 
-    def _show_book_info_dialog(self, book: Book, parent_dlg: Optional[ft.AlertDialog] = None):
+    def _show_book_info_dialog(self, book: Book, parent_dlg: ft.AlertDialog | None = None):
         """Показывает диалог с информацией о том как читать книгу"""
         if parent_dlg:
             self.page.close(parent_dlg)
-            
+
         dlg = ft.AlertDialog(
             title=ft.Row([
                 ft.Icon(ft.icons.INFO, color=ft.colors.PRIMARY),
@@ -800,9 +802,9 @@ class NurBooksApp:
                 self.page.snack_bar.open = True
                 self.page.update()
 
-        threading.Thread(target=download, daemon=True).start()    
+        threading.Thread(target=download, daemon=True).start()
 
-    def _open_book_view(self, book: Book, dlg: Optional[ft.AlertDialog] = None):
+    def _open_book_view(self, book: Book, dlg: ft.AlertDialog | None = None):
         """Открывает страницу просмотра книги"""
         if dlg:
             self.page.close(dlg)
@@ -817,13 +819,13 @@ class NurBooksApp:
         )
         self.main_content.content = book_page.build()
         self.page.update()
-    
-    def _show_pdf_reader(self, book: Book, page_number: Optional[int] = None, dlg: Optional[ft.AlertDialog] = None):
+
+    def _show_pdf_reader(self, book: Book, page_number: int | None = None, dlg: ft.AlertDialog | None = None):
         """Открывает встроенную читалку PDF"""
         from src.core.database import Database
         if dlg:
             self.page.close(dlg)
-        
+
         # Получаем закладки для этой книги
         db = Database()
         reader = PDFReaderPage(
@@ -836,23 +838,23 @@ class NurBooksApp:
         )
         self.main_content.content = reader.build()
         self.page.update()
-        
-    def _add_to_cart(self, book: Book, dlg: Optional[ft.AlertDialog] = None):
+
+    def _add_to_cart(self, book: Book, dlg: ft.AlertDialog | None = None):
         """Добавляет книгу в корзину"""
         if dlg:
             self.page.close(dlg)
-        
+
         if self.cart_widget.add_book(book):
             self.notification_manager.add_notification(
                 title="Книга добавлена",
                 message=f"Книга '{book.title}' добавлена в корзину",
                 type="success"
             )
-            
+
             # Показываем корзину, если она не видна
             if not self.cart_visible:
                 self._toggle_cart(update_ui=False)
-            
+
             self._update_notification_panel()
             self._update_cart_badge()
             self.page.update()
@@ -863,7 +865,7 @@ class NurBooksApp:
             )
             self.page.snack_bar.open = True
             self.page.update()
-    
+
     def _on_cart_download(self, books: list):
         """Скачивание книг из корзины"""
         def download_all():
@@ -892,10 +894,10 @@ class NurBooksApp:
                         message=f"Не удалось скачать '{book.title}': {str(e)}",
                         type="error"
                     )
-            
+
             self._update_notification_panel()
             self._update_cart_badge()
-            
+
             # Показываем сообщение об успешном скачивании
             self.page.snack_bar = ft.SnackBar(
                 content=ft.Text(f"Скачано {len(books)} книг"),
@@ -905,21 +907,21 @@ class NurBooksApp:
             self.page.update()
 
         threading.Thread(target=download_all, daemon=True).start()
-          
+
     def _on_cart_remove(self, book_id: int):
         """Удаление книги из корзины"""
         self.cart_widget.remove_book(book_id)
-        
+
         self.notification_manager.add_notification(
             title="Книга удалена",
             message="Книга удалена из корзины",
             type="info"
         )
-        
+
         self._update_notification_panel()
         self._update_cart_badge()
         self.page.update()
-    
+
     def _on_author_selected(self, author):
         """Обработчик выбора автора"""
         self.selected_author = author
@@ -953,7 +955,7 @@ class NurBooksApp:
                     content=ft.Column([
                         ft.Text(f"Книги ({len(author_books)})", size=18, weight=ft.FontWeight.BOLD),
                         ft.Divider(),
-                        
+
                         ft.GridView(
                             controls=[
                                 self._create_simple_book_card(book)
@@ -972,10 +974,10 @@ class NurBooksApp:
             ], scroll=ft.ScrollMode.AUTO),
             expand=True
         )
-        
+
         self.main_content.content = content
         self.page.update()
-    
+
     def _create_simple_book_card(self, book):
         return ft.Container(
             content=ft.Column([

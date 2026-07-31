@@ -42,8 +42,8 @@ ITEMS_PER_PAGE = 12
 # Настройки электронной почты
 EMAIL_SMTP_SERVER = "smtp.gmail.com"
 EMAIL_SMTP_PORT = 587
-EMAIL_ADDRESS = ""  
-EMAIL_PASSWORD = "" 
+EMAIL_ADDRESS = ""
+EMAIL_PASSWORD = ""
 
 def _resolve_service_account_key():
     """Ищет serviceAccountKey.json: рядом с EXE, в _MEIPASS, в CWD"""
@@ -71,7 +71,7 @@ class FirebaseConfig:
     MESSAGING_SENDER_ID = "9086132352"
     APP_ID = "1:9086132352:web:fbed7cfafa2df0d4a20665"
     SERVICE_ACCOUNT_KEY_PATH = SERVICE_ACCOUNT_KEY_PATH
-    
+
     @classmethod
     def to_dict(cls):
         """Возвращает конфигурацию в dict формате"""
@@ -82,11 +82,11 @@ class FirebaseConfig:
             'messagingSenderId': cls.MESSAGING_SENDER_ID,
             'appId': cls.APP_ID
         }
-    
+
     @classmethod
     def is_configured(cls):
         """Проверяет, настроен ли Firebase"""
-        return (cls.API_KEY != "AIzaSyXXXXXXXXXXXX" and 
+        return (cls.API_KEY != "AIzaSyXXXXXXXXXXXX" and
                 os.path.exists(cls.SERVICE_ACCOUNT_KEY_PATH))
 
 
@@ -96,12 +96,12 @@ class GitHubConfig:
     REPO_OWNER = "NurApps"
     REPO_NAME = "NurBooks-Releases"
     GITHUB_TOKEN = ""  # Personal Access Token
-    
+
     @classmethod
     def get_release_url(cls, asset_name: str) -> str:
         """Формирует URL для скачивания файла из GitHub Releases"""
         return f"https://github.com/{cls.REPO_OWNER}/{cls.REPO_NAME}/releases/latest/download/{asset_name}"
-    
+
     @classmethod
     def get_api_url(cls) -> str:
         """URL API для получения информации о релизах"""

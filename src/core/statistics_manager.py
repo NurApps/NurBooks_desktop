@@ -1,6 +1,5 @@
 import threading
-from typing import Optional
-from src.core.models import Book
+
 from src.core.database import Database
 from src.core.logger import get_logger
 
@@ -86,30 +85,6 @@ class StatisticsManager:
                 return self.database.get_book_statistics(book_id)
             except Exception:
                 return {'view_count': 0, 'download_count': 0, 'view_to_download_ratio': 0}
-
-    def update_book_view_count_in_db(self, book_id: int, new_value: int) -> bool:
-        try:
-            if self._use_firebase:
-                from src.core.firebase_client import firebase_client
-                if firebase_client._db:
-                    firebase_client._db.collection('books').document(str(book_id)).update({'viewCount': new_value})
-                    return True
-            return False
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении view_count: {e}", exc_info=True)
-            return False
-
-    def update_book_download_count_in_db(self, book_id: int, new_value: int) -> bool:
-        try:
-            if self._use_firebase:
-                from src.core.firebase_client import firebase_client
-                if firebase_client._db:
-                    firebase_client._db.collection('books').document(str(book_id)).update({'downloadCount': new_value})
-                    return True
-            return False
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении download_count: {e}", exc_info=True)
-            return False
 
 
 # Алиас для удобства

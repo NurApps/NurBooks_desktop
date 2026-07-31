@@ -1,13 +1,13 @@
 """Инициализация core-модуля"""
-from src.core.models import Book, Author, UserSettings, Notification, Bookmark
-from src.core.database import Database
 from src.core.analytics import Analytics
-from src.core.statistics_manager import StatisticsManager, stats
-from src.core.firebase_client import FirebaseClient, firebase_client
+from src.core.database import Database
 from src.core.downloader import Downloader
-from src.core.notifications import NotificationManager
-from src.core.storage import Storage
+from src.core.firebase_client import FirebaseClient, firebase_client
 from src.core.logger import get_logger, logger
+from src.core.models import Author, Book, Bookmark, Notification, UserSettings
+from src.core.notifications import NotificationManager
+from src.core.statistics_manager import StatisticsManager, stats
+from src.core.storage import Storage
 
 __all__ = [
     'Book',
@@ -26,5 +26,5 @@ __all__ = [
     'Storage',
     'get_logger',
     'logger',
-] 
+]
 

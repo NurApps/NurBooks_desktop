@@ -1,6 +1,18 @@
-import flet as ft
 import webbrowser
-from src.config import APP_NAME, APP_VERSION, APP_DESCRIPTION, DEVELOPERS, TESTERS, DESIGNERS, CONTACT_EMAIL, TELEGRAM_CONTACTS
+
+import flet as ft
+
+from src.config import (
+    APP_DESCRIPTION,
+    APP_NAME,
+    APP_VERSION,
+    CONTACT_EMAIL,
+    DESIGNERS,
+    DEVELOPERS,
+    TELEGRAM_CONTACTS,
+    TESTERS,
+)
+
 
 class AboutPage:
     def __init__(self, page: ft.Page):
@@ -120,12 +132,12 @@ class AboutPage:
                     content=ft.Column([
                         ft.Text("Поддержать проект", size=20, weight=ft.FontWeight.BOLD),
                         ft.Divider(),
-                        
+
                         ft.Text(
                             "Если вам нравится приложение, вы можете поддержать нас финансово!",
                             text_align=ft.TextAlign.CENTER
                         ),
-                        
+
                         ft.ElevatedButton(
                             "Поддержать нас 💰",
                             icon=ft.icons.PAYMENT,
@@ -149,12 +161,12 @@ class AboutPage:
                     content=ft.Column([
                         ft.Text("Предложить книгу", size=20, weight=ft.FontWeight.BOLD),
                         ft.Divider(),
-                        
+
                         ft.Text(
                             "Вы можете предложить интересующую вас книгу в нашем Telegram боте.",
                             text_align=ft.TextAlign.CENTER
                         ),
-                        
+
                         ft.ElevatedButton(
                             "Перейти в Telegram",
                             icon=ft.icons.TELEGRAM,
@@ -238,11 +250,11 @@ class AboutPage:
         )
         self.page.snack_bar.open = True
         self.page.update()
-    
+
     def _open_donation_link(self, e):
         """Открывает ссылку для доната"""
         webbrowser.open("https://www.donationalerts.com/r/nurapps")
-    
+
     def _open_telegram_bot(self, e):
         """Открывает Telegram бота для предложения книги"""
         webbrowser.open("https://t.me/nurbooks_official_bot")

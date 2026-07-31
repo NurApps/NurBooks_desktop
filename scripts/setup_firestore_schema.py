@@ -45,14 +45,14 @@ def setup_firestore():
         from firebase_admin import credentials, firestore
 
         # Инициализация
-        if not firebase_admin._DEFAULT_APP_NAME in firebase_admin._apps:
+        if firebase_admin._DEFAULT_APP_NAME not in firebase_admin._apps:
             cred = credentials.Certificate(service_account_path)
             from src.config import FirebaseConfig
             firebase_admin.initialize_app(cred, {
                 'projectId': FirebaseConfig.PROJECT_ID
             })
 
-        db = firestore.client()
+        firestore.client()
         print("[OK] Подключено к Firestore")
         print()
 

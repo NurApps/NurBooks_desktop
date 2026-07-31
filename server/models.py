@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import Optional, List
 
 
 class BookCreate(BaseModel):
@@ -7,43 +7,43 @@ class BookCreate(BaseModel):
     title: str
     author: str
     category: str
-    year: Optional[int] = 0
-    description: Optional[str] = ""
-    cover: Optional[str] = ""
+    year: int | None = 0
+    description: str | None = ""
+    cover: str | None = ""
     pdf: str
-    fileSize: Optional[str] = None
-    pages: Optional[int] = None
-    copyrightProtected: Optional[bool] = False
-    viewCount: Optional[int] = 0
-    downloadCount: Optional[int] = 0
+    fileSize: str | None = None
+    pages: int | None = None
+    copyrightProtected: bool | None = False
+    viewCount: int | None = 0
+    downloadCount: int | None = 0
 
 
 class BookUpdate(BaseModel):
-    title: Optional[str] = None
-    author: Optional[str] = None
-    category: Optional[str] = None
-    year: Optional[int] = None
-    description: Optional[str] = None
-    cover: Optional[str] = None
-    pdf: Optional[str] = None
-    fileSize: Optional[str] = None
-    pages: Optional[int] = None
-    copyrightProtected: Optional[bool] = None
-    viewCount: Optional[int] = None
-    downloadCount: Optional[int] = None
+    title: str | None = None
+    author: str | None = None
+    category: str | None = None
+    year: int | None = None
+    description: str | None = None
+    cover: str | None = None
+    pdf: str | None = None
+    fileSize: str | None = None
+    pages: int | None = None
+    copyrightProtected: bool | None = None
+    viewCount: int | None = None
+    downloadCount: int | None = None
 
 
 class AuthorCreate(BaseModel):
     id: int
     name: str
-    bio: Optional[str] = ""
-    books: Optional[List[int]] = []
+    bio: str | None = ""
+    books: list[int] | None = []
 
 
 class BookmarkCreate(BaseModel):
     bookId: int
     page: int
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
 
 
 class ReadingProgressSave(BaseModel):
@@ -54,4 +54,4 @@ class ReadingProgressSave(BaseModel):
 class AnalyticsEventCreate(BaseModel):
     eventType: str
     bookId: int
-    metadata: Optional[dict] = None
+    metadata: dict | None = None

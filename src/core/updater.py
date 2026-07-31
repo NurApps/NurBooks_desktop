@@ -9,7 +9,7 @@ import sys
 import threading
 import urllib.request
 from dataclasses import dataclass
-from typing import Optional
+
 from src.config import APP_VERSION
 from src.core.logger import get_logger
 
@@ -42,7 +42,7 @@ def _parse_version(tag: str) -> tuple:
     return tuple(parts[:3])
 
 
-def _get_json(url: str, timeout: int = 10) -> Optional[dict]:
+def _get_json(url: str, timeout: int = 10) -> dict | None:
     try:
         ctx = ssl.create_default_context()
         req = urllib.request.Request(url, headers={"User-Agent": "NurBooks/1.0"})
@@ -53,7 +53,7 @@ def _get_json(url: str, timeout: int = 10) -> Optional[dict]:
         return None
 
 
-def check_latest(beta: bool = False) -> Optional[ReleaseInfo]:
+def check_latest(beta: bool = False) -> ReleaseInfo | None:
     """Проверяет последний релиз на GitHub."""
     url = API_URL if beta else f"{API_URL}/latest"
     data = _get_json(url)

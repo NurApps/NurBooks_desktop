@@ -7,9 +7,9 @@
 3. python scripts/upload_books_from_json.py
 """
 
+import json
 import os
 import sys
-import json
 
 sys.path.insert(0, os.path.abspath('.'))
 
@@ -38,7 +38,7 @@ def load_and_upload():
         print("Сначала запусти: python export_sqlite_to_json.py")
         return
 
-    with open('books_export.json', 'r', encoding='utf-8') as f:
+    with open('books_export.json', encoding='utf-8') as f:
         books = json.load(f)
 
     print(f"[OK] Загружено {len(books)} книг из JSON")
@@ -49,7 +49,7 @@ def load_and_upload():
         import firebase_admin
         from firebase_admin import credentials, firestore
 
-        if not firebase_admin._DEFAULT_APP_NAME in firebase_admin._apps:
+        if firebase_admin._DEFAULT_APP_NAME not in firebase_admin._apps:
             cred = credentials.Certificate(sa_path)
             firebase_admin.initialize_app(cred, {
                 'projectId': 'nurbooks-a0eae'
@@ -68,7 +68,6 @@ def load_and_upload():
 
     for i, book in enumerate(books, 1):
         book_id = str(book['id'])
-        title = book['title'][:40]
 
         doc_data = {
             'id': book['id'],
