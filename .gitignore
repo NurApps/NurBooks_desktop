@@ -1,18 +1,31 @@
+# Секреты и окружение
 .env
 serviceAccount.json
 serviceAccountKey.json
-installer-nurbooks.spec
-books_export.json
-FIREBASE_MIGRATION_PLAN.md
-__pycache__/
-.kilo
+
+# Локальные инструменты
+.kilo/
 .ruff_cache/
-.venv
+.venv/
 .vscode/
 
-# Персональные данные (не синхронизировать между устройствами)
-data/notifications.json
-data/settings.json
-data/favorites.json
-data/favorite_books.json
-data/saved_books.json
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Сборка
+build/
+dist/
+
+# Рантайм-данные (создаются приложением при первом запуске)
+data/
+logs/
+pdfs/
+saved_books/
+downloads/
+books_export.json
+
+# Windows
+desktop.ini
+Thumbs.db

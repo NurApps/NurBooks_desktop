@@ -1,9 +1,0 @@
-2026-05-27 18:18:48 | CRITICAL | src.ui.pages.auth_page | handle_exception:95 | Необработанное исключение
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-  File "D:\projects\NurBooks_desktop\src\ui\main.py", line 20, in <module>
-    from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
-  File "D:\projects\NurBooks_desktop\src\ui\pages\pdf_reader.py", line 457
-    self.page.snack_bar.open = True
-    ^^^^
-SyntaxError: expected 'except' or 'finally' block
