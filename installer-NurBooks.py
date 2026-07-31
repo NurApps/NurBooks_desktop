@@ -1,14 +1,14 @@
-import customtkinter as ctk
-from tkinter import filedialog, messagebox
 import os
-import requests
 import shutil
 import tempfile
-import zipfile
 import threading
+import zipfile
+from tkinter import filedialog, messagebox
 
-import win32com.client
+import customtkinter as ctk
 import pythoncom
+import requests
+import win32com.client
 
 # Настройка темы custom tkinter
 ctk.set_appearance_mode("system")
@@ -128,17 +128,27 @@ class NurBooksInstaller:
         threading.Thread(target=self.perform_installation, daemon=True).start()
 
     def perform_installation(self):
-        # COM нужно инициализировать в том же потоке, где будет использоваться
         pythoncom.CoInitialize()
 
-        DOWNLOAD_URL = "https://github.com/salihhhh014/NurBooks/releases/download/datas/data.pkg"
-        REMOTE_FILE_EXTENSION = ".pkg"
-        ACTUAL_FILE_TYPE = ".zip"
+        DOWNLOAD_URL = "https://github.com/salihhhh014/NurBooks/releases/latest/download/nurbooks.zip"
 
         selected_dest_dir = self.install_path.get()
-        dest_dir = os.path.join(selected_dest_dir, "NurBooks-1.2.75 Lite")
+        dest_dir = os.path.join(selected_dest_dir, "NurBooks")
 
         try:
+            # Удаление старых версий
+            old_dirs = [
+                os.path.join(selected_dest_dir, d)
+                for d in os.listdir(selected_dest_dir)
+                if os.path.isdir(os.path.join(selected_dest_dir, d)) and d.startswith("NurBooks-")
+            ] if os.path.isdir(selected_dest_dir) else []
+            for old_dir in old_dirs:
+                try:
+                    shutil.rmtree(old_dir)
+                    print(f"Удалена старая версия: {old_dir}")
+                except Exception as e:
+                    print(f"Не удалось удалить {old_dir}: {e}")
+
             if os.path.exists(dest_dir):
                 overwrite = messagebox.askyesno(
                     "Подтверждение",
@@ -153,22 +163,20 @@ class NurBooksInstaller:
             os.makedirs(dest_dir, exist_ok=True)
 
             # 1. СКАЧИВАНИЕ
-            self.root.after(0, lambda: self.status_label.configure(text="Скачивание файла..."))
+            self.root.after(0, lambda: self.status_label.configure(text="Скачивание NurBooks..."))
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=REMOTE_FILE_EXTENSION) as tmp_file:
-                temp_download_path = tmp_file.name
-
-            temp_zip_path = temp_download_path.replace(REMOTE_FILE_EXTENSION, ACTUAL_FILE_TYPE)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_file:
+                temp_zip_path = tmp_file.name
 
             try:
                 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-                response = requests.get(DOWNLOAD_URL, stream=True, headers=headers)
+                response = requests.get(DOWNLOAD_URL, stream=True, headers=headers, allow_redirects=True)
                 response.raise_for_status()
                 total_size = int(response.headers.get('content-length', 0))
                 block_size = 8192
                 downloaded_size = 0
 
-                with open(temp_download_path, 'wb') as f:
+                with open(temp_zip_path, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=block_size):
                         if chunk:
                             f.write(chunk)
@@ -177,20 +185,9 @@ class NurBooksInstaller:
                                 progress = (downloaded_size / total_size) * 40
                                 self.root.after(0, lambda pv=progress: self.progress.set(pv / 100))
 
-                # 2. ПРОВЕРКА
-                self.root.after(0, lambda: self.status_label.configure(text="Проверка архива..."))
-
-                with open(temp_download_path, 'rb') as f:
-                    file_header = f.read(4)
-
-                if file_header[:2] != b'PK':
-                    raise ValueError(f"Скачанный файл не является ZIP архивом! Заголовок: {file_header.hex()}")
-
-                shutil.move(temp_download_path, temp_zip_path)
+                # 2. РАСПАКОВКА
+                self.root.after(0, lambda: self.status_label.configure(text="Установка файлов..."))
                 self.root.after(0, lambda: self.progress.set(0.45))
-
-                # 3. РАСПАКОВКА
-                self.root.after(0, lambda: self.status_label.configure(text="Распаковка файлов..."))
 
                 with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
                     file_list = zip_ref.namelist()
@@ -203,20 +200,18 @@ class NurBooksInstaller:
             finally:
                 if os.path.exists(temp_zip_path):
                     os.remove(temp_zip_path)
-                if os.path.exists(temp_download_path):
-                    os.remove(temp_download_path)
 
-            # 4. СОЗДАНИЕ ПАПОК
+            # 3. СОЗДАНИЕ ПАПОК
             os.makedirs(os.path.join(dest_dir, "downloads"), exist_ok=True)
             os.makedirs(os.path.join(dest_dir, "saved_books"), exist_ok=True)
 
             self.root.after(0, lambda: self.status_label.configure(text="Создание ярлыков..."))
             self.root.after(0, lambda: self.progress.set(0.95))
 
-            # 5. УДАЛЕНИЕ СТАРЫХ ЯРЛЫКОВ
+            # 4. УДАЛЕНИЕ СТАРЫХ ЯРЛЫКОВ
             self.remove_old_shortcuts()
 
-            # 6. СОЗДАНИЕ ЯРЛЫКОВ (COM уже инициализирован в этом потоке)
+            # 5. СОЗДАНИЕ ЯРЛЫКОВ
             exe_path = self._find_exe(dest_dir)
 
             if exe_path:

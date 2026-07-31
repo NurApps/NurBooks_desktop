@@ -1,15 +1,45 @@
-name: Build NurBooks Desktop
+name: Build NurBooks
 
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*.*.*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  build:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r server/requirements.txt
+        pip install -r requirements-dev.txt
+
+    - name: Lint with ruff
+      run: |
+        ruff check src server tests scripts add_book_gui.py installer-NurBooks.py
+
+    - name: Test with pytest
+      run: |
+        pytest
+
+  build-app:
     runs-on: windows-latest
+    needs: lint-and-test
 
     steps:
     - name: Checkout repository
@@ -26,15 +56,75 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller
         pip install flet==0.24.0
-        # Если есть сторонние библиотеки, раскомментируйте:
         pip install -r requirements.txt
 
     - name: Build Executable
       run: |
-        flet pack src/ui/main.py --name "NurBooks Desktop" --icon "assets/logo.ico"
+        flet pack src/ui/main.py --name "NurBooks" --icon "assets/logo.ico"
 
-    - name: Upload Build Artifact
+    - name: Package as nurbooks.zip
+      run: |
+        Compress-Archive -Path "dist/NurBooks/*" -DestinationPath "nurbooks.zip"
+
+    - name: Upload app artifact
       uses: actions/upload-artifact@v4
       with:
-        name: NurBooks-Desktop-Windows
-        path: dist/
+        name: nurbooks-zip
+        path: nurbooks.zip
+
+  build-installer:
+    runs-on: windows-latest
+    needs: lint-and-test
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12.9'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install pywin32
+        pip install -r requirements.txt
+
+    - name: Build installer executable
+      run: |
+        pyinstaller installer-nurbooks.spec
+
+    - name: Upload installer artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: installer-nurbooks
+        path: dist/installer-nurbooks/
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-app, build-installer]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download app artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: nurbooks-zip
+
+    - name: Download installer artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: installer-nurbooks
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          nurbooks.zip
+          installer-nurbooks/**
+        generate_release_notes: true
