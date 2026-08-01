@@ -597,7 +597,12 @@ class NurBooksApp:
 
     def _build_catalog_page(self):
         books = self.storage.load_books()
-        cp = CatalogPage(page=self.page, books=books, on_book_click=self._on_book_selected)
+        cp = CatalogPage(
+            page=self.page,
+            books=books,
+            on_book_click=self._on_book_selected,
+            on_continue_reading=lambda b, p: self._show_pdf_reader(b, p),
+        )
         self.main_content.content = cp.build()
         self.current_page = "catalog"
 

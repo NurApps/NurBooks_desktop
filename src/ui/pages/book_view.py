@@ -27,7 +27,9 @@ class BookViewPage:
         self.downloader = Downloader(download_path=self.settings.default_path)
 
         # Загружаем список избранных книг
-        self.favorite_books = self._load_favorite_books()
+        from src.core.favorites import favorites
+        self.favorites_manager = favorites
+        self.favorite_books = self.favorites_manager.get_favorites()
 
         # 🔥 NEW: увеличиваем просмотры сразу при открытии страницы
         self._record_book_view()
@@ -92,23 +94,11 @@ class BookViewPage:
 
     def _load_favorite_books(self) -> list:
         """Загружает список избранных книг"""
-        try:
-            with open("data/favorite_books.json", encoding="utf-8") as f:
-                import json
-                return json.load(f)
-        except FileNotFoundError:
-            return []
-        except Exception:
-            return []
+        return self.favorites_manager.get_favorites()
 
     def _save_favorite_books(self):
         """Сохраняет список избранных книг"""
-        try:
-            with open("data/favorite_books.json", "w", encoding="utf-8") as f:
-                import json
-                json.dump(self.favorite_books, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"Ошибка сохранения избранного: {e}", exc_info=True)
+        pass
 
     def _find_downloaded_file(self) -> tuple[bool, str]:
         """
@@ -157,7 +147,7 @@ class BookViewPage:
 
     def _is_book_in_favorites(self) -> bool:
         """Проверяет, есть ли книга в избранном"""
-        return str(self.book.id) in self.favorite_books
+        return self.favorites_manager.is_favorite(str(self.book.id))
 
     def _create_favorite_button(self) -> ft.IconButton:
         """Создает кнопку избранного с правильным состоянием"""
@@ -760,19 +750,17 @@ class BookViewPage:
             book_id = str(self.book.id)
 
             # Проверяем, есть ли книга уже в избранном
-            if book_id in self.favorite_books:
+            if self.favorites_manager.is_favorite(book_id):
                 # Удаляем из избранного
-                self.favorite_books.remove(book_id)
+                self.favorites_manager.remove(book_id)
                 message = f"Книга '{self.book.title}' удалена из избранного"
             else:
                 # Добавляем в избранное
-                self.favorite_books.append(book_id)
+                self.favorites_manager.add(book_id)
                 message = f"Книга '{self.book.title}' добавлена в избранное"
 
-            # Сохраняем изменения
-            self._save_favorite_books()
-
-            # Обновляем кнопку
+            # Обновляем локальный список и кнопку
+            self.favorite_books = self.favorites_manager.get_favorites()
             self._toggle_favorite_button()
 
             # Показываем сообщение

@@ -1,9 +1,10 @@
 import os
+import shutil
 import sys
 
 import requests
 
-from src.config import NURBOOKS_DOWNLOADS_PATH
+from src.config import DEFAULT_DATA_PATH, NURBOOKS_DOWNLOADS_PATH
 from src.core.models import Book
 from src.core.utils import format_file_size
 
@@ -13,6 +14,8 @@ class Downloader:
         # По умолчанию используем папку downloads-nurbooks в системной папке загрузок
         self.download_path = download_path or NURBOOKS_DOWNLOADS_PATH
         self.database = database
+        # Офлайн-кэш PDF внутри данных приложения (читается без интернета)
+        self.cache_path = os.path.join(DEFAULT_DATA_PATH, "pdf_cache")
         os.makedirs(self.download_path, exist_ok=True)
 
     def _convert_to_raw_url(self, url: str) -> str:
@@ -156,6 +159,59 @@ class Downloader:
         except Exception as e:
             print(f"Ошибка удаления файла: {e}")
             return False
+
+    # ---- Офлайн-кэш PDF ----
+
+    def _cache_path_for(self, book: Book) -> str:
+        """Путь файла в офлайн-кэше (тот же стабильный формат имени, что и при скачивании)."""
+        pdf_url = self._convert_to_raw_url(book.pdf)
+        if pdf_url.startswith('http'):
+            original_filename = os.path.basename(pdf_url.split('?')[0])
+        else:
+            original_filename = os.path.basename(pdf_url)
+        filename = self._get_book_filename(book, original_filename)
+        return os.path.join(self.cache_path, filename)
+
+    def get_cached_pdf(self, book: Book) -> str | None:
+        """Возвращает путь к PDF из офлайн-кэша, если он там есть."""
+        try:
+            cache_file = self._cache_path_for(book)
+            if os.path.exists(cache_file):
+                return cache_file
+        except Exception as e:
+            print(f"Ошибка проверки кэша PDF: {e}")
+        return None
+
+    def ensure_cached(self, book: Book, source_path: str | None = None) -> str | None:
+        """Копирует PDF книги в офлайн-кэш (если ещё нет), чтобы её можно было читать без интернета."""
+        try:
+            cache_file = self._cache_path_for(book)
+            if os.path.exists(cache_file):
+                return cache_file
+
+            if not source_path or not os.path.exists(source_path):
+                is_downloaded, source_path = self.is_book_downloaded(book)
+                if not is_downloaded or not source_path:
+                    return None
+
+            os.makedirs(self.cache_path, exist_ok=True)
+            shutil.copy2(source_path, cache_file)
+            print(f"[Cache] PDF закэширован: {cache_file}")
+            return cache_file
+        except Exception as e:
+            print(f"Ошибка кэширования PDF: {e}")
+            return None
+
+    def download_to_cache(self, book: Book) -> str | None:
+        """Скачивает книгу прямо в офлайн-кэш и возвращает путь к файлу."""
+        try:
+            cached = self.get_cached_pdf(book)
+            if cached:
+                return cached
+            return self.ensure_cached(book, self.download_book(book))
+        except Exception as e:
+            print(f"Ошибка скачивания в кэш: {e}")
+            return None
 
     def is_book_downloaded(self, book: Book) -> tuple[bool, str | None]:
         """

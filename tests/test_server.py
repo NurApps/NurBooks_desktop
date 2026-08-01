@@ -169,3 +169,66 @@ def test_reading_progress_scoped_by_user(monkeypatch):
     )
     assert r.status_code == 200
     assert captured == {"bid": 3, "page": 50, "uid": "user-9"}
+
+
+# ============ Favorites ============
+
+
+def test_get_favorites(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "all_favorites", lambda uid: [1, 2, 3])
+    r = client.get("/favorites", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json() == {"favorites": [1, 2, 3]}
+
+
+def test_create_favorite_scoped_by_user(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-7")
+    captured = {}
+    monkeypatch.setattr(fb, "add_favorite", lambda uid, bid: captured.update(uid=uid, bid=bid))
+
+    r = client.post("/favorites", json={"bookId": 10}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert captured == {"uid": "user-7", "bid": 10}
+
+
+def test_delete_favorite_scoped_by_user(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-7")
+    captured = {}
+    monkeypatch.setattr(fb, "remove_favorite", lambda uid, bid: captured.update(uid=uid, bid=bid))
+
+    r = client.delete("/favorites/10", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert captured == {"uid": "user-7", "bid": 10}
+
+
+# ============ Analytics history ============
+
+
+def test_analytics_event_scoped_by_user(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-3")
+    captured = {}
+    monkeypatch.setattr(fb, "log_event", lambda et, bid, md, uid: captured.update(et=et, bid=bid, md=md, uid=uid))
+
+    r = client.post(
+        "/analytics/events",
+        json={"eventType": "read", "bookId": 4, "metadata": {"page": 5}},
+        headers={"Authorization": "Bearer t"},
+    )
+    assert r.status_code == 200
+    assert captured["uid"] == "user-3"
+    assert captured["et"] == "read"
+    assert captured["md"] == {"page": 5}
+
+
+def test_analytics_history(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-3")
+    monkeypatch.setattr(fb, "get_reading_history", lambda uid: [{"bookId": 4}])
+    r = client.get("/analytics/history", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json() == [{"bookId": 4}]

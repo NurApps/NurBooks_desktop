@@ -51,6 +51,10 @@ class ReadingProgressSave(BaseModel):
     page: int
 
 
+class FavoriteCreate(BaseModel):
+    bookId: int
+
+
 class AnalyticsEventCreate(BaseModel):
     eventType: str
     bookId: int

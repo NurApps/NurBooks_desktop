@@ -6,7 +6,15 @@ import os
 import firebase_service as fb
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from models import AnalyticsEventCreate, AuthorCreate, BookCreate, BookmarkCreate, BookUpdate, ReadingProgressSave
+from models import (
+    AnalyticsEventCreate,
+    AuthorCreate,
+    BookCreate,
+    BookmarkCreate,
+    BookUpdate,
+    FavoriteCreate,
+    ReadingProgressSave,
+)
 from rate_limit import RateLimitMiddleware
 
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
@@ -226,6 +234,29 @@ def delete_bookmark(bookmark_id: str, authorization: str = Header("")):
     return {"status": "success"}
 
 
+# ============ Favorites ============
+
+
+@app.get("/favorites")
+def get_favorites(authorization: str = Header("")):
+    require_firebase()
+    return {"favorites": fb.all_favorites(resolve_uid(authorization))}
+
+
+@app.post("/favorites")
+def create_favorite(data: FavoriteCreate, authorization: str = Header("")):
+    require_firebase()
+    fb.add_favorite(resolve_uid(authorization), data.bookId)
+    return {"status": "success"}
+
+
+@app.delete("/favorites/{book_id}")
+def delete_favorite(book_id: int, authorization: str = Header("")):
+    require_firebase()
+    fb.remove_favorite(resolve_uid(authorization), book_id)
+    return {"status": "success"}
+
+
 # ============ Reading Progress ============
 
 
@@ -253,10 +284,16 @@ def get_all_progress(authorization: str = Header("")):
 
 
 @app.post("/analytics/events")
-def log_event(data: AnalyticsEventCreate):
+def log_event(data: AnalyticsEventCreate, authorization: str = Header("")):
     require_firebase()
-    fb.log_event(data.eventType, data.bookId, data.metadata)
+    fb.log_event(data.eventType, data.bookId, data.metadata, resolve_uid(authorization))
     return {"status": "success"}
+
+
+@app.get("/analytics/history")
+def get_history(authorization: str = Header("")):
+    require_firebase()
+    return fb.get_reading_history(resolve_uid(authorization))
 
 
 @app.get("/analytics/books/{book_id}")

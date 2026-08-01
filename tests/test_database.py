@@ -74,3 +74,27 @@ def test_database_fallback_progress(monkeypatch):
     db._firebase = None
     assert db.save_reading_progress(7, 12) is True
     assert db.get_reading_progress(7) == 12
+
+
+def test_local_reading_history_roundtrip():
+    db_path = tempfile.mktemp(suffix=".db")
+    local = LocalDatabase(db_path=db_path)
+    assert local.get_reading_history() == []
+    local.add_reading_event(5, 20, duration_seconds=120)
+    local.add_reading_event(6, 1, duration_seconds=0)
+    history = local.get_reading_history()
+    assert len(history) == 2
+    assert history[0]["bookId"] == 6
+    assert history[1]["bookId"] == 5
+    assert history[1]["durationSeconds"] == 120
+    local.clear_reading_history()
+    assert local.get_reading_history() == []
+
+
+def test_database_add_reading_event_local_fallback(monkeypatch):
+    db_path = tempfile.mktemp(suffix=".db")
+    db = Database()
+    db._local = LocalDatabase(db_path=db_path)
+    db._firebase = None
+    assert db.add_reading_event(9, 33, 60) is True
+    assert db.get_reading_history()[0]["bookId"] == 9

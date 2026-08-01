@@ -50,14 +50,10 @@ class MyLibraryPage:
         except Exception:
             self.saved_books = []
 
-        # Загрузка избранных книг из файла
-        try:
-            with open("data/favorite_books.json") as f:
-                self.favorite_books = json.load(f)
-        except FileNotFoundError:
-            self.favorite_books = []
-        except Exception:
-            self.favorite_books = []
+        # Загрузка избранных книг через менеджер (сервер + локальный кэш)
+        from src.core.favorites import favorites
+        self.favorites_manager = favorites
+        self.favorite_books = self.favorites_manager.get_favorites()
 
         # Загрузка закладок из базы данных
         db = Database()
@@ -73,11 +69,7 @@ class MyLibraryPage:
 
     def _save_favorite_books(self):
         """Сохраняет список избранных книг"""
-        try:
-            with open("data/favorite_books.json", "w") as f:
-                json.dump(self.favorite_books, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Ошибка сохранения избранного: {e}")
+        pass
 
     def _create_downloaded_book_item(self, book: Book, filename: str) -> ft.Control:
         """Создает элемент для скачанной книги"""
@@ -377,6 +369,10 @@ class MyLibraryPage:
                     text="Мои закладки",
                     content=self._create_bookmarks_tab()
                 ),
+                ft.Tab(
+                    text="История чтения",
+                    content=self._create_reading_history_tab()
+                ),
             ],
             expand=1,
         )
@@ -575,6 +571,114 @@ class MyLibraryPage:
             ]),
             padding=20,
             expand=True
+        )
+
+    def _create_reading_history_tab(self) -> ft.Control:
+        """Создает вкладку с историей чтения"""
+        db = Database()
+        history = db.get_reading_history()
+        all_books = self.storage.load_books()
+
+        items = []
+        for event in history:
+            book = None
+            book_data = event.get("book")
+            if isinstance(book_data, dict):
+                try:
+                    from src.core.models import Book
+                    book = Book(
+                        id=book_data.get("id", 0),
+                        title=book_data.get("title", ""),
+                        author=book_data.get("author", ""),
+                        category=book_data.get("category", ""),
+                        year=book_data.get("year", 0),
+                        description=book_data.get("description", ""),
+                        cover=book_data.get("cover", ""),
+                        pdf=book_data.get("pdf", ""),
+                        view_count=book_data.get("viewCount", 0),
+                        download_count=book_data.get("downloadCount", 0),
+                    )
+                except Exception:
+                    book = None
+            if book is None:
+                book = next((b for b in all_books if b.id == event.get("bookId")), None)
+            if book is None:
+                continue
+            if not self._matches_search(book):
+                continue
+            items.append(self._create_reading_history_item(book, event))
+
+        if not items:
+            return ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.icons.HISTORY, size=48, color=ft.colors.GREY),
+                    ft.Text("Ничего не найдено" if self.search_query else "История чтения пуста", size=16, color=ft.colors.GREY),
+                    ft.Text("Открывайте книги во встроенной читалке — они появятся здесь", size=12, color=ft.colors.GREY_600),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=20,
+                alignment=ft.alignment.center
+            )
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Text(f"Всего записей: {len(items)}", size=14, color=ft.colors.GREY),
+                ft.Container(
+                    content=ft.Column(items, scroll=ft.ScrollMode.ADAPTIVE),
+                    padding=10,
+                    expand=True
+                ),
+            ]),
+            padding=20,
+            expand=True
+        )
+
+    def _create_reading_history_item(self, book, event: dict) -> ft.Control:
+        """Создает элемент истории чтения"""
+        def format_date(ts):
+            try:
+                dt = datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
+                return dt.strftime("%d.%m.%Y %H:%M")
+            except (ValueError, TypeError):
+                return ts or ""
+
+        duration = int(event.get("durationSeconds", 0) or 0)
+        if duration > 0:
+            minutes = max(1, round(duration / 60))
+            time_text = f"чтение ~{minutes} мин"
+        else:
+            time_text = "открытие книги"
+
+        page = event.get("page") or 0
+        page_text = f" • стр. {page}" if page else ""
+
+        return ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    content=ft.Icon(ft.icons.MENU_BOOK, color=ft.colors.GREEN, size=22),
+                    bgcolor=ft.colors.GREEN_50,
+                    border_radius=20,
+                    width=40,
+                    height=40,
+                    alignment=ft.alignment.center,
+                ),
+                ft.Column([
+                    ft.Text(book.title, weight=ft.FontWeight.BOLD, size=14),
+                    ft.Text(
+                        f"{time_text}{page_text} • {format_date(event.get('timestamp'))}",
+                        size=12, color=ft.colors.ON_SURFACE_VARIANT
+                    ),
+                ], expand=True, spacing=2),
+                ft.IconButton(
+                    icon=ft.icons.OPEN_IN_NEW,
+                    tooltip="Читать",
+                    on_click=lambda e, b=book, p=page: self._open_book_at_page(b, p or 1),
+                ),
+            ], spacing=12),
+            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=ft.colors.SURFACE,
+            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border_radius=12,
+            margin=ft.margin.only(bottom=8)
         )
 
     def _go_to_bookmark_page(self, book, page_number):
@@ -894,8 +998,8 @@ class MyLibraryPage:
 
     def _on_delete_favorite_click(self, book_id: str):
         """Удаляет книгу из избранных"""
-        self.favorite_books = [bid for bid in self.favorite_books if bid != book_id]
-        self._save_favorite_books()
+        self.favorites_manager.remove(book_id)
+        self.favorite_books = self.favorites_manager.get_favorites()
         self.content = self._create_content()
         self.page.update()
 

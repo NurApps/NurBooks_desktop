@@ -370,6 +370,27 @@ class FirebaseClient:
         data = _get("/reading-progress")
         return data or {}
 
+    # ---- Favorites ----
+
+    def get_favorites(self) -> list[str]:
+        data = _get("/favorites")
+        if data and data.get("favorites"):
+            return [str(f) for f in data["favorites"]]
+        return []
+
+    def add_favorite(self, book_id: int) -> bool:
+        result = _post("/favorites", {"bookId": book_id})
+        return result is not None
+
+    def remove_favorite(self, book_id: int) -> bool:
+        return _delete(f"/favorites/{book_id}")
+
+    # ---- Reading History ----
+
+    def get_reading_history(self, limit: int = 50) -> list[dict]:
+        data = _get(f"/analytics/history?limit={limit}")
+        return data or []
+
     # ---- Authors ----
 
     def get_all_authors(self) -> list[dict]:

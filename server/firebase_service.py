@@ -198,6 +198,27 @@ def all_bookmarks_with_books(uid: str = "public") -> list:
     return result
 
 
+# ---- Favorites ----
+
+def add_favorite(uid: str, book_id: int):
+    _firestore.collection("favorites").document(f"{uid}_{book_id}").set({
+        "bookId": book_id,
+        "userId": uid,
+        "timestamp": datetime.now().isoformat(),
+    })
+
+
+def remove_favorite(uid: str, book_id: int):
+    doc = _firestore.collection("favorites").document(f"{uid}_{book_id}").get()
+    if doc.exists and doc.to_dict().get("userId") == uid:
+        doc.reference.delete()
+
+
+def all_favorites(uid: str) -> list:
+    docs = _firestore.collection("favorites").where("userId", "==", uid).order_by("timestamp").stream()
+    return [doc.to_dict().get("bookId") for doc in docs]
+
+
 # ---- Reading Progress ----
 
 def save_reading_progress(book_id: int, page: int, uid: str = "public"):
@@ -231,11 +252,40 @@ def all_reading_progress(uid: str = "public") -> dict:
 
 # ---- Analytics Events ----
 
-def log_event(event_type: str, book_id: int, metadata: dict = None):
-    event = {"eventType": event_type, "bookId": book_id, "timestamp": datetime.now().isoformat()}
+def log_event(event_type: str, book_id: int, metadata: dict = None, uid: str = "public"):
+    event = {
+        "eventType": event_type,
+        "bookId": book_id,
+        "userId": uid,
+        "timestamp": datetime.now().isoformat(),
+    }
     if metadata:
         event.update(metadata)
     _firestore.collection("analytics_events").add(event)
+
+
+def get_reading_history(uid: str, limit: int = 50) -> list:
+    """Последние события чтения пользователя (с данными книги)."""
+    result = []
+    docs = _firestore.collection("analytics_events").order_by("timestamp", direction="DESCENDING").limit(limit).stream()
+    for doc in docs:
+        d = doc.to_dict()
+        if d.get("userId", "public") != uid:
+            continue
+        if d.get("eventType") not in ("read", "read_open"):
+            continue
+        book = book_doc(d.get("bookId"))
+        if not book:
+            continue
+        result.append({
+            "eventType": d.get("eventType"),
+            "bookId": d.get("bookId"),
+            "timestamp": d.get("timestamp"),
+            "page": d.get("page", 0),
+            "durationSeconds": d.get("durationSeconds", 0),
+            "book": book,
+        })
+    return result
 
 
 def get_book_analytics(book_id: int) -> dict:

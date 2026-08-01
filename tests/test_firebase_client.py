@@ -95,3 +95,29 @@ def test_request_attaches_bearer_token(monkeypatch, tmp_path):
     with patch.object(fc.urllib.request, "urlopen", side_effect=fake_urlopen):
         fc._get("/books")
     assert captured["headers"].get("Authorization") == "Bearer tok"
+
+
+def test_get_favorites(monkeypatch):
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({"favorites": [1, 2]})):
+        assert fc.firebase_client.get_favorites() == ["1", "2"]
+
+
+def test_get_favorites_empty(monkeypatch):
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({})):
+        assert fc.firebase_client.get_favorites() == []
+
+
+def test_add_favorite(monkeypatch):
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({"status": "success"})):
+        assert fc.firebase_client.add_favorite(42) is True
+
+
+def test_remove_favorite(monkeypatch):
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({}, status=200)):
+        assert fc.firebase_client.remove_favorite(42) is True
+
+
+def test_get_reading_history(monkeypatch):
+    payload = [{"bookId": 1, "page": 5, "book": {"id": 1}}]
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response(payload)):
+        assert fc.firebase_client.get_reading_history() == payload

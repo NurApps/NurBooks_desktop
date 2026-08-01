@@ -49,6 +49,15 @@ class LocalDatabase:
                     page INTEGER DEFAULT 0
                 )"""
             )
+            c.execute(
+                """CREATE TABLE IF NOT EXISTS reading_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER,
+                    page INTEGER DEFAULT 0,
+                    duration_seconds INTEGER DEFAULT 0,
+                    timestamp TEXT
+                )"""
+            )
             self._conn.commit()
 
     # ---- Books ----
@@ -148,6 +157,36 @@ class LocalDatabase:
             c = self._conn.cursor()
             rows = c.execute("SELECT book_id, page FROM reading_progress").fetchall()
             return {book_id: page for book_id, page in rows}
+
+    # ---- Reading history ----
+
+    def add_reading_event(self, book_id: int, page: int, duration_seconds: int = 0):
+        from datetime import datetime
+        with self._lock:
+            c = self._conn.cursor()
+            c.execute(
+                "INSERT INTO reading_history (book_id, page, duration_seconds, timestamp) VALUES (?, ?, ?, ?)",
+                (book_id, page, duration_seconds, datetime.now().isoformat(timespec="seconds")),
+            )
+            self._conn.commit()
+
+    def get_reading_history(self, limit: int = 50) -> list[dict]:
+        with self._lock:
+            c = self._conn.cursor()
+            rows = c.execute(
+                "SELECT book_id, page, duration_seconds, timestamp FROM reading_history ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {"bookId": r[0], "page": r[1], "durationSeconds": r[2], "timestamp": r[3]}
+            for r in rows
+        ]
+
+    def clear_reading_history(self):
+        with self._lock:
+            c = self._conn.cursor()
+            c.execute("DELETE FROM reading_history")
+            self._conn.commit()
 
 
 class Database:
@@ -324,3 +363,29 @@ class Database:
             if book.pdf == pdf_path:
                 return book
         return None
+
+    # ---- Reading history (локальное хранилище + сервер) ----
+
+    def add_reading_event(self, book_id: int, page: int, duration_seconds: int = 0) -> bool:
+        self._local.add_reading_event(book_id, page, duration_seconds)
+        fb = self._fb()
+        if fb:
+            try:
+                fb.log_analytics_event("read", book_id, {
+                    "page": page,
+                    "durationSeconds": duration_seconds,
+                })
+            except Exception as e:
+                logger.warning(f"Не удалось отправить событие чтения: {e}")
+        return True
+
+    def get_reading_history(self, limit: int = 50) -> list[dict]:
+        fb = self._fb()
+        if fb:
+            try:
+                history = fb.get_reading_history(limit)
+                if history is not None:
+                    return history
+            except Exception as e:
+                logger.warning(f"Не удалось получить историю с сервера: {e}")
+        return self._local.get_reading_history(limit)

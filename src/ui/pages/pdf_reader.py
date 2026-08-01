@@ -71,6 +71,9 @@ class PDFReaderPage:
         self._drag_start_x = 0
         self._search_timer = None
 
+        # Для истории чтения
+        self._read_start_time = time.time()
+
         # Создаём временную директорию
         os.makedirs(TEMP_DIR, exist_ok=True)
         self.render_dir = tempfile.mkdtemp(dir=TEMP_DIR) or ""
@@ -281,6 +284,16 @@ class PDFReaderPage:
             db = Database()
             db.save_reading_progress(self.book.id, self.current_page + 1)
 
+    def _log_reading_event(self, duration_seconds: int):
+        """Записывает событие чтения в историю"""
+        if self.book.id <= 0:
+            return
+        try:
+            from src.core.database import Database
+            Database().add_reading_event(self.book.id, self.current_page + 1, duration_seconds)
+        except Exception as e:
+            print(f"[PDF] Ошибка записи истории чтения: {e}")
+
     def _show_page_image(self, image_path: str):
         """Показывает изображение страницы - ГЛАВНЫЙ МЕТОД"""
         try:
@@ -341,11 +354,24 @@ class PDFReaderPage:
                 self.pdf_path = filepath
                 print(f"[PDF] Файл найден: {filepath}")
             else:
-                self._show_error(
-                    "❌ Книга не скачана!\n\nСначала скачайте книгу.",
-                    show_download=True
-                )
-                return
+                # Пробуем офлайн-кэш
+                cached = self.downloader.get_cached_pdf(self.book)
+                if cached and os.path.exists(cached):
+                    self.pdf_path = cached
+                    print(f"[PDF] Файл из кэша: {cached}")
+                else:
+                    self._show_error(
+                        "❌ Книга не скачана!\n\nСначала скачайте книгу.",
+                        show_download=True
+                    )
+                    return
+
+            # Копируем в офлайн-кэш в фоне (если книга взята не из кэша)
+            if self.pdf_path and not self.downloader.get_cached_pdf(self.book):
+                threading.Thread(
+                    target=lambda: self.downloader.ensure_cached(self.book, self.pdf_path),
+                    daemon=True,
+                ).start()
 
             # Открываем
             self._show_loading("Открытие...")
@@ -366,6 +392,7 @@ class PDFReaderPage:
             first_page_path = self._render_page(start_page)
             if first_page_path:
                 self._show_page_image(first_page_path)
+                self._log_reading_event(0)
             else:
                 self._show_error("Ошибка рендеринга первой страницы")
                 return
@@ -543,6 +570,9 @@ class PDFReaderPage:
                 self.book.download_count = getattr(self.book, "download_count", 0) + 1
                 print(f"[PDF] Скачано: {path}")
 
+                # Копируем в офлайн-кэш
+                self.downloader.ensure_cached(self.book, path)
+
                 # Показываем уведомление
                 self.page.snack_bar = ft.SnackBar(ft.Text(f"Скачано: {self.book.title}"))
                 self.page.snack_bar.open = True
@@ -592,6 +622,7 @@ class PDFReaderPage:
         """Возврат"""
         self._stop_preload.set()
         self._save_progress()
+        self._log_reading_event(int(time.time() - self._read_start_time))
         self._close_search()
         # Восстанавливаем предыдущий обработчик клавиатуры
         self.page.on_keyboard_event = self._prev_keyboard

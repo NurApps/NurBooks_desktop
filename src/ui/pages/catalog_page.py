@@ -8,12 +8,14 @@ from src.ui.components.search_bar import SearchBar
 
 
 class CatalogPage:
-    def __init__(self, page: ft.Page, books: list[Book], on_book_click=None):
+    def __init__(self, page: ft.Page, books: list[Book], on_book_click=None, on_continue_reading=None, reading_progress: dict | None = None):
         self.page = page
         self.on_book_click = on_book_click
+        self.on_continue_reading = on_continue_reading
         self.books: list[Book] = books
         self.filtered_books: list[Book] = books.copy()
         self._search_timer = None
+        self._reading_progress = reading_progress
 
         self.filters_panel = FiltersPanel(on_filter_change=self._on_filter_change)
         self.search_bar = SearchBar(on_search=None)
@@ -89,6 +91,82 @@ class CatalogPage:
             padding=20, alignment=ft.alignment.center,
         )
 
+    def _load_reading_progress(self) -> dict[int, int]:
+        if self._reading_progress is not None:
+            return self._reading_progress
+        try:
+            from src.core.database import Database
+            raw = Database().get_all_reading_progress()
+            result = {}
+            for key, page in (raw or {}).items():
+                try:
+                    result[int(key)] = int(page)
+                except (TypeError, ValueError):
+                    continue
+            return result
+        except Exception:
+            return {}
+
+    def _create_continue_reading_section(self) -> ft.Control:
+        """Секция «Продолжить чтение» с книгами, которые пользователь начал читать."""
+        progress = self._load_reading_progress()
+        if not progress:
+            return ft.Container(height=0)
+
+        book_by_id = {b.id: b for b in self.books}
+        items = []
+        for book_id, page in list(progress.items())[:6]:
+            book = book_by_id.get(book_id)
+            if not book:
+                continue
+            items.append(ft.Container(
+                content=ft.Column([
+                    ft.Container(
+                        content=ft.Image(
+                            src=book.cover if book.cover else "assets/logo.png",
+                            width=140, height=185,
+                            fit=ft.ImageFit.COVER,
+                            border_radius=ft.border_radius.all(8),
+                        ),
+                        alignment=ft.alignment.center,
+                    ),
+                    ft.Text(book.title, size=13, weight=ft.FontWeight.BOLD,
+                            max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, text_align=ft.TextAlign.CENTER),
+                    ft.Text(f"Страница {page}", size=11, color=ft.colors.PRIMARY,
+                            text_align=ft.TextAlign.CENTER),
+                ], spacing=6, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                width=170, padding=10,
+                bgcolor=ft.colors.SURFACE_VARIANT, border_radius=10,
+                on_click=lambda e, b=book, p=page: self._on_continue_reading(b, p),
+                ink=True,
+            ))
+
+        if not items:
+            return ft.Container(height=0)
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.icons.HISTORY, size=20, color=ft.colors.PRIMARY),
+                    ft.Text("Продолжить чтение", size=18, weight=ft.FontWeight.BOLD),
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Divider(height=8, color=ft.colors.OUTLINE_VARIANT),
+                ft.Row(
+                    items,
+                    scroll=ft.ScrollMode.AUTO,
+                    spacing=15,
+                    run_spacing=15,
+                ),
+            ]),
+            padding=ft.padding.only(left=20, right=20, top=10, bottom=5),
+        )
+
+    def _on_continue_reading(self, book: Book, page: int):
+        if self.on_continue_reading:
+            self.on_continue_reading(book, page)
+        else:
+            self._on_book_click(book)
+
     def _rebuild_grid(self):
         if not self.filtered_books:
             self.grid_container.content = self._build_empty_state()
@@ -121,6 +199,7 @@ class CatalogPage:
                     ], spacing=10),
                     padding=ft.padding.only(left=20, right=20, top=20, bottom=10),
                 ),
+                self._create_continue_reading_section(),
                 ft.Row([
                     ft.Container(self.filters_panel.build(), width=260),
                     ft.VerticalDivider(width=1),
