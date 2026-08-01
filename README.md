@@ -2,6 +2,29 @@
 
 Электронная исламская библиотека от NurApps. Десктоп-приложение на Flet (Python) с синхронизацией через Firebase/FastAPI-сервер.
 
+## Возможности
+
+- Каталог книг с поиском, фильтрами и сортировкой.
+- Встроенная PDF-читалка с прогрессом, закладками и поиском по тексту.
+- Синхронизация по пользователю: избранное, закладки, прогресс и история чтения.
+- Автоматический вход (анонимный или по email) и раздел «Аккаунт» в настройках.
+- Офлайн-режим: каталог, прогресс чтения и PDF-книги (кэш в `data/pdf_cache/`) без интернета.
+- «Продолжить чтение» на главной странице.
+
+## API-эндпоинты
+
+| Метод | Путь | Назначение |
+|-------|------|------------|
+| GET/POST | `/favorites`, `DELETE /favorites/{book_id}` | Избранное по пользователю |
+| GET | `/analytics/history` | История чтения пользователя |
+| GET/POST | `/bookmarks`, `DELETE /bookmarks/{id}` | Закладки |
+| GET/PUT | `/reading-progress`, `/reading-progress/{book_id}` | Прогресс чтения |
+| GET/POST/PUT/DELETE | `/books`, `/books/{book_id}` | Книги |
+| POST | `/books/{id}/view`, `/books/{id}/download` | Счётчики просмотров/скачиваний |
+| GET | `/authors`, POST `/authors`, PUT `/authors` | Авторы |
+| POST | `/analytics/events` | События аналитики |
+| GET | `/health` | Проверка статуса |
+
 ## Структура проекта
 
 ```
@@ -39,7 +62,7 @@ uvicorn main:app --reload
 
 ```bash
 pip install -r requirements-dev.txt
-pytest              # 60+ тестов
+pytest              # 85+ тестов
 ruff check src server tests scripts add_book_gui.py installer-NurBooks.py
 ```
 

@@ -60,6 +60,9 @@ class NurBooksApp:
         self.selected_book = None
         self.selected_author = None
 
+        # Автоматический вход (анонимный или восстановление сессии)
+        self._ensure_authentication()
+
         # Инициализация корзины
         self.cart_widget = CartWidget(
             on_download_all=self._on_cart_download,
@@ -166,6 +169,26 @@ class NurBooksApp:
             # Очищаем все временные PDF файлы
             on_app_exit()
             self.page.window.close()
+
+    def _ensure_authentication(self):
+        """Анонимный вход или восстановление сессии, если аккаунта ещё нет."""
+        try:
+            if not firebase_client.is_initialized():
+                return
+            threading.Thread(target=self._authenticate_in_background, daemon=True).start()
+        except Exception as e:
+            print(f"[Auth] Не удалось запустить вход: {e}")
+
+    def _authenticate_in_background(self):
+        """Фоновый вход: восстанавливаем сессию, иначе входим анонимно."""
+        try:
+            if firebase_client.get_current_user():
+                return
+            if firebase_client.refresh_session():
+                return
+            firebase_client.sign_in_anonymous()
+        except Exception as e:
+            print(f"[Auth] Ошибка фонового входа: {e}")
 
     def _create_top_app_bar(self) -> ft.Control:
         """Создает верхнюю панель приложения"""

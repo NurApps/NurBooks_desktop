@@ -10,7 +10,7 @@ API_BASE_URL = "https://nurbooks-api.onrender.com"
 API_KEY = ""
 
 APP_NAME = "NurBooks"
-APP_VERSION = "1.3.5  Beta"
+APP_VERSION = "1.4.0  Beta"
 APP_DESCRIPTION = "Электронная исламская библиотека от NurApps."
 DEVELOPERS = ["Salikh Suyundikov", "Daniyal Kislicky"]
 TESTERS = ["Mukhammad Odilov"]

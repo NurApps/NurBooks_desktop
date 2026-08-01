@@ -79,6 +79,44 @@ def test_sign_out(monkeypatch, tmp_path):
     assert fc.firebase_client.get_current_user() is None
 
 
+def test_sign_in_stores_refresh_token(monkeypatch, tmp_path):
+    monkeypatch.setattr(fc, "_AUTH_TOKEN_FILE", str(tmp_path / "auth.json"))
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({
+        "idToken": "tok", "localId": "u1", "refreshToken": "rt-123", "expiresIn": "3600",
+    })):
+        fc.firebase_client.sign_in_anonymous()
+    assert fc.auth_session.refresh_token == "rt-123"
+
+
+def test_refresh_session(monkeypatch, tmp_path):
+    monkeypatch.setattr(fc, "_AUTH_TOKEN_FILE", str(tmp_path / "auth.json"))
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({
+        "idToken": "tok", "localId": "u1", "refreshToken": "rt-123", "expiresIn": "3600",
+    })):
+        fc.firebase_client.sign_in_anonymous()
+
+    # Токен истёк
+    fc.auth_session._expires_at = 0
+
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({
+        "id_token": "new-tok", "user_id": "u1", "expires_in": "3600",
+    })):
+        uid = fc.firebase_client.refresh_session()
+    assert uid == "u1"
+    assert fc.auth_session.token == "new-tok"
+    assert fc.firebase_client.get_current_user()["uid"] == "u1"
+
+
+def test_get_current_user_when_token_expired(monkeypatch, tmp_path):
+    monkeypatch.setattr(fc, "_AUTH_TOKEN_FILE", str(tmp_path / "auth.json"))
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({
+        "idToken": "tok", "localId": "u1", "refreshToken": "rt-123", "expiresIn": "3600",
+    })):
+        fc.firebase_client.sign_in_anonymous()
+    fc.auth_session._expires_at = 0
+    assert fc.firebase_client.get_current_user()["uid"] == "u1"
+
+
 def test_request_attaches_bearer_token(monkeypatch, tmp_path):
     monkeypatch.setattr(fc, "_AUTH_TOKEN_FILE", str(tmp_path / "auth.json"))
     with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({

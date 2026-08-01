@@ -21,6 +21,7 @@ API_KEY = CONFIG_API_KEY
 
 _AUTH_TOKEN_FILE = os.path.join(DEFAULT_DATA_PATH, "auth.json")
 _IDENTITY_TOOLKIT_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
+_SECURE_TOKEN_URL = "https://securetoken.googleapis.com/v1/token"
 
 
 class _AuthSession:
@@ -30,6 +31,7 @@ class _AuthSession:
         self._id_token: str | None = None
         self._uid: str | None = None
         self._email: str | None = None
+        self._refresh_token: str | None = None
         self._expires_at: float = 0
         self._load()
 
@@ -40,6 +42,7 @@ class _AuthSession:
             self._id_token = data.get("id_token")
             self._uid = data.get("uid")
             self._email = data.get("email")
+            self._refresh_token = data.get("refresh_token")
             self._expires_at = data.get("expires_at", 0)
         except Exception:
             pass
@@ -52,6 +55,7 @@ class _AuthSession:
                     "id_token": self._id_token,
                     "uid": self._uid,
                     "email": self._email,
+                    "refresh_token": self._refresh_token,
                     "expires_at": self._expires_at,
                 }, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -71,10 +75,15 @@ class _AuthSession:
     def email(self) -> str | None:
         return self._email
 
-    def set(self, id_token: str, uid: str, email: str | None, expires_in: int):
+    @property
+    def refresh_token(self) -> str | None:
+        return self._refresh_token
+
+    def set(self, id_token: str, uid: str, email: str | None, expires_in: int, refresh_token: str | None = None):
         self._id_token = id_token
         self._uid = uid
         self._email = email
+        self._refresh_token = refresh_token
         self._expires_at = time.time() + expires_in
         self._save()
 
@@ -82,6 +91,7 @@ class _AuthSession:
         self._id_token = None
         self._uid = None
         self._email = None
+        self._refresh_token = None
         self._expires_at = 0
         self._save()
 
@@ -421,6 +431,7 @@ class FirebaseClient:
             uid=data["localId"],
             email=None,
             expires_in=int(data.get("expiresIn", 3600)),
+            refresh_token=data.get("refreshToken"),
         )
         logger.info(f"Анонимный вход: uid={auth_session.uid}")
         return auth_session.uid
@@ -439,9 +450,37 @@ class FirebaseClient:
             uid=data["localId"],
             email=data.get("email", email),
             expires_in=int(data.get("expiresIn", 3600)),
+            refresh_token=data.get("refreshToken"),
         )
         logger.info(f"Вход по email: uid={auth_session.uid}")
         return auth_session.uid
+
+    def refresh_session(self) -> str | None:
+        """Обновляет ID-токен через refreshToken (сохраняет того же пользователя)."""
+        refresh = auth_session.refresh_token
+        if not refresh:
+            return None
+        url = f"{_SECURE_TOKEN_URL}?key={FirebaseConfig.API_KEY}"
+        payload = {"grant_type": "refresh_token", "refresh_token": refresh}
+        req = urllib.request.Request(
+            url, data=json.dumps(payload).encode(), method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read().decode())
+            auth_session.set(
+                id_token=data["id_token"],
+                uid=data["user_id"],
+                email=auth_session.email,
+                expires_in=int(data.get("expires_in", 3600)),
+                refresh_token=refresh,
+            )
+            logger.info(f"Сессия обновлена: uid={auth_session.uid}")
+            return auth_session.uid
+        except Exception as e:
+            logger.warning(f"Не удалось обновить сессию: {e}")
+            return None
 
     def sign_out(self) -> bool:
         auth_session.clear()
@@ -449,9 +488,12 @@ class FirebaseClient:
         return True
 
     def get_current_user(self) -> dict | None:
-        if not auth_session.token:
-            return None
-        return {"uid": auth_session.uid, "email": auth_session.email}
+        if auth_session.token:
+            return {"uid": auth_session.uid, "email": auth_session.email}
+        # Токен мог истечь — но сессия ещё есть, её можно обновить через refresh_token.
+        if auth_session.refresh_token and auth_session._uid:
+            return {"uid": auth_session._uid, "email": auth_session._email}
+        return None
 
 
 firebase_client = FirebaseClient()

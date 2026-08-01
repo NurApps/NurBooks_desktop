@@ -18,7 +18,7 @@ from models import (
 from rate_limit import RateLimitMiddleware
 
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
-APP_VERSION = "1.3.5 Beta"
+APP_VERSION = "1.4.0 Beta"
 
 # Отключаем цветной логгер uvicorn (глючит на Render без TTY)
 import logging  # noqa: E402

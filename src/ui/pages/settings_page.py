@@ -98,10 +98,54 @@ class SettingsPage:
             can_reveal_password=True,
         )
 
+        # Аккаунт
+        self._account_status_text = ft.Text("", size=13)
+        self._login_btn = ft.ElevatedButton(
+            "Войти",
+            icon=ft.icons.LOGIN,
+            on_click=self._show_login_dialog,
+        )
+        self._logout_btn = ft.OutlinedButton(
+            "Выйти",
+            icon=ft.icons.LOGOUT,
+            on_click=self._on_logout,
+            visible=False,
+        )
+        self._email_field = ft.TextField(label="Email", autofocus=True, keyboard_type=ft.KeyboardType.EMAIL)
+        self._password_field = ft.TextField(
+            label="Пароль", password=True, can_reveal_password=True,
+            on_submit=self._on_login_submit,
+        )
+        self._login_status_text = ft.Text("", size=12)
+        self._login_progress = ft.ProgressRing(width=18, height=18, visible=False)
+        self._update_account_section()
+
         # Создаем основное содержимое
         self.content = ft.Container(
             content=ft.Column(
                 [
+                    # Аккаунт
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text("Аккаунт", size=20, weight=ft.FontWeight.BOLD),
+                                ft.Divider(),
+                                self._account_status_text,
+                                ft.Row(
+                                    [
+                                        self._login_btn,
+                                        self._logout_btn,
+                                    ],
+                                    spacing=10,
+                                ),
+                            ],
+                            spacing=10,
+                        ),
+                        padding=20,
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        border_radius=10,
+                        margin=ft.margin.symmetric(horizontal=20, vertical=10),
+                    ),
 
                     # Основные настройки
                     ft.Container(
@@ -565,6 +609,109 @@ class SettingsPage:
                     message=f"Не удалось сбросить настройки: {ex}",
                     type="error",
                 )
+
+    def _update_account_section(self):
+        """Обновляет блок аккаунта по текущему пользователю."""
+        from src.core.firebase_client import firebase_client
+        user = firebase_client.get_current_user()
+        if user:
+            label = user.get("email") or "Анонимный пользователь"
+            self._account_status_text.value = f"Вы вошли как: {label}"
+            self._account_status_text.color = ft.colors.ON_SURFACE_VARIANT
+            self._login_btn.visible = False
+            self._logout_btn.visible = True
+        else:
+            self._account_status_text.value = "Вход не выполнен. Без входа избранное и история общие для всех."
+            self._account_status_text.color = ft.colors.GREY_700
+            self._login_btn.visible = True
+            self._logout_btn.visible = False
+
+    def _show_login_dialog(self, e=None):
+        """Показывает диалог входа по email/паролю."""
+        self._email_field.value = ""
+        self._password_field.value = ""
+        self._login_status_text.value = ""
+        self._login_progress.visible = False
+        dlg = ft.AlertDialog(
+            title=ft.Text("Вход в аккаунт"),
+            content=ft.Column(
+                [
+                    ft.Text("Войдите, чтобы синхронизировать избранное и историю чтения.", size=12, color=ft.colors.GREY_700),
+                    self._email_field,
+                    self._password_field,
+                    ft.Row([self._login_progress, self._login_status_text], spacing=8),
+                ],
+                tight=True,
+                spacing=12,
+                width=320,
+            ),
+            actions=[
+                ft.TextButton("Отмена", on_click=lambda _: self.page.close(dlg)),
+                ft.ElevatedButton("Войти", icon=ft.icons.LOGIN, on_click=lambda _: self._on_login_submit(dlg)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self._active_login_dlg = dlg
+        self.page.open(dlg)
+
+    def _on_login_submit(self, e=None, dlg=None):
+        """Выполняет вход по email/паролю."""
+        dlg = dlg or getattr(self, "_active_login_dlg", None)
+        email = (self._email_field.value or "").strip()
+        password = self._password_field.value or ""
+
+        if not email or not password:
+            self._login_status_text.value = "Введите email и пароль"
+            self._login_status_text.color = ft.colors.ERROR
+            self.page.update()
+            return
+
+        self._login_progress.visible = True
+        self._login_status_text.value = "Вход..."
+        self._login_status_text.color = ft.colors.GREY_700
+        self.page.update()
+
+        def _do():
+            from src.core.favorites import favorites
+            from src.core.firebase_client import firebase_client
+            uid = firebase_client.sign_in_with_email(email, password)
+            if uid:
+                favorites.load()
+            self._login_progress.visible = False
+            if uid:
+                self._login_status_text.value = "Успешный вход!"
+                self._login_status_text.color = ft.colors.GREEN
+                self._update_account_section()
+                if dlg:
+                    self.page.close(dlg)
+                if self.notification_manager:
+                    self.notification_manager.add_notification(
+                        title="Вход выполнен",
+                        message=f"Вы вошли как: {email}",
+                        type="success",
+                    )
+            else:
+                self._login_status_text.value = "Не удалось войти. Проверьте email и пароль."
+                self._login_status_text.color = ft.colors.ERROR
+            self.page.update()
+
+        import threading
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _on_logout(self, e=None):
+        """Выход из аккаунта."""
+        from src.core.favorites import favorites
+        from src.core.firebase_client import firebase_client
+        firebase_client.sign_out()
+        favorites.load()
+        self._update_account_section()
+        self.page.update()
+        if self.notification_manager:
+            self.notification_manager.add_notification(
+                title="Выход выполнен",
+                message="Вы вышли из аккаунта",
+                type="info",
+            )
 
     def _close_dialog(self, e=None, dlg=None):
         """Закрыть диалог"""
