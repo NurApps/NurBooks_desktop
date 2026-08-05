@@ -16,7 +16,14 @@
 | Метод | Путь | Назначение |
 |-------|------|------------|
 | GET/POST | `/favorites`, `DELETE /favorites/{book_id}` | Избранное по пользователю |
+| GET/POST | `/wishlist`, `DELETE /wishlist/{book_id}` | «Хочу прочитать» |
+| GET/PUT/DELETE | `/books/{book_id}/ratings`, `/ratings/{book_id}` | Оценки и отзывы |
 | GET | `/analytics/history` | История чтения пользователя |
+| GET | `/analytics/stats` | Личная статистика чтения |
+| GET | `/leaderboard` | Рейтинг читателей |
+| POST | `/auth/register` | Создание/обновление профиля пользователя в Firestore |
+| POST/GET/PUT/DELETE | `/libraries`, `/libraries/{id}` | Общие библиотеки |
+| POST | `/libraries/{id}/join`, `/libraries/{id}/books` | Вступление по коду, управление книгами |
 | GET/POST | `/bookmarks`, `DELETE /bookmarks/{id}` | Закладки |
 | GET/PUT | `/reading-progress`, `/reading-progress/{book_id}` | Прогресс чтения |
 | GET/POST/PUT/DELETE | `/books`, `/books/{book_id}` | Книги |
