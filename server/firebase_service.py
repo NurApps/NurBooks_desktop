@@ -219,6 +219,17 @@ def all_favorites(uid: str) -> list:
     return [doc.to_dict().get("bookId") for doc in docs]
 
 
+# ---- Users ----
+
+def upsert_user(uid: str, nickname: str):
+    """Создаёт или обновляет профиль пользователя (ник)."""
+    _firestore.collection("users").document(uid).set({
+        "userId": uid,
+        "nickname": nickname,
+        "updatedAt": datetime.now().isoformat(),
+    })
+
+
 # ---- Reading Progress ----
 
 def save_reading_progress(book_id: int, page: int, uid: str = "public"):

@@ -59,3 +59,7 @@ class AnalyticsEventCreate(BaseModel):
     eventType: str
     bookId: int
     metadata: dict | None = None
+
+
+class UserUpsert(BaseModel):
+    nickname: str

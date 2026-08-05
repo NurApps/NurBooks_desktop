@@ -38,6 +38,7 @@ from models import (  # noqa: E402
     BookUpdate,
     FavoriteCreate,
     ReadingProgressSave,
+    UserUpsert,
 )
 from rate_limit import RateLimitMiddleware  # noqa: E402
 
@@ -324,6 +325,20 @@ def get_history(authorization: str = Header("")):
 def get_analytics(book_id: int):
     require_firebase()
     return fb.get_book_analytics(book_id)
+
+
+# ============ Auth ============
+
+
+@app.post("/auth/register")
+def register_user(data: UserUpsert, authorization: str = Header("")):
+    """Сохраняет профиль пользователя (ник) после регистрации."""
+    require_firebase()
+    uid = resolve_uid(authorization)
+    if uid == "public":
+        raise HTTPException(401, "Authentication required")
+    fb.upsert_user(uid, data.nickname)
+    return {"status": "success"}
 
 
 # ============ Health ============

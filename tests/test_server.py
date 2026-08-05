@@ -1,6 +1,9 @@
 import importlib
+import os
 
 from fastapi.testclient import TestClient
+
+os.environ["NURBOOKS_API_KEY"] = ""
 
 main = importlib.import_module("main")
 import firebase_service as fb
@@ -232,3 +235,23 @@ def test_analytics_history(monkeypatch):
     r = client.get("/analytics/history", headers={"Authorization": "Bearer t"})
     assert r.status_code == 200
     assert r.json() == [{"bookId": 4}]
+
+
+# ============ Auth ============
+
+
+def test_register_user(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-9")
+    captured = {}
+    monkeypatch.setattr(fb, "upsert_user", lambda uid, nick: captured.update(uid=uid, nick=nick))
+
+    r = client.post("/auth/register", json={"nickname": "Алиса"}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert captured == {"uid": "user-9", "nick": "Алиса"}
+
+
+def test_register_user_requires_auth(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    r = client.post("/auth/register", json={"nickname": "Алиса"})
+    assert r.status_code == 401

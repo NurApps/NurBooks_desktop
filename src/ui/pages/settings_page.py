@@ -111,13 +111,26 @@ class SettingsPage:
             on_click=self._on_logout,
             visible=False,
         )
-        self._email_field = ft.TextField(label="Email", autofocus=True, keyboard_type=ft.KeyboardType.EMAIL)
+        self._register_btn = ft.OutlinedButton(
+            "Регистрация",
+            icon=ft.icons.APP_REGISTRATION,
+            on_click=self._show_register_dialog,
+            visible=False,
+        )
+        self._email_field = ft.TextField(label="Ник или Email", autofocus=True, keyboard_type=ft.KeyboardType.EMAIL)
         self._password_field = ft.TextField(
             label="Пароль", password=True, can_reveal_password=True,
             on_submit=self._on_login_submit,
         )
         self._login_status_text = ft.Text("", size=12)
         self._login_progress = ft.ProgressRing(width=18, height=18, visible=False)
+        self._register_nickname_field = ft.TextField(label="Ник", autofocus=True)
+        self._register_password_field = ft.TextField(
+            label="Пароль", password=True, can_reveal_password=True,
+            on_submit=self._on_register_submit,
+        )
+        self._register_status_text = ft.Text("", size=12)
+        self._register_progress = ft.ProgressRing(width=18, height=18, visible=False)
         self._update_account_section()
 
         # Создаем основное содержимое
@@ -135,6 +148,7 @@ class SettingsPage:
                                     [
                                         self._login_btn,
                                         self._logout_btn,
+                                        self._register_btn,
                                     ],
                                     spacing=10,
                                 ),
@@ -615,16 +629,18 @@ class SettingsPage:
         from src.core.firebase_client import firebase_client
         user = firebase_client.get_current_user()
         if user:
-            label = user.get("email") or "Анонимный пользователь"
+            label = user.get("nickname") or user.get("email") or "Анонимный пользователь"
             self._account_status_text.value = f"Вы вошли как: {label}"
             self._account_status_text.color = ft.colors.ON_SURFACE_VARIANT
             self._login_btn.visible = False
             self._logout_btn.visible = True
+            self._register_btn.visible = False
         else:
             self._account_status_text.value = "Вход не выполнен. Без входа избранное и история общие для всех."
             self._account_status_text.color = ft.colors.GREY_700
             self._login_btn.visible = True
             self._logout_btn.visible = False
+            self._register_btn.visible = True
 
     def _show_login_dialog(self, e=None):
         """Показывает диалог входа по email/паролю."""
@@ -674,7 +690,10 @@ class SettingsPage:
         def _do():
             from src.core.favorites import favorites
             from src.core.firebase_client import firebase_client
-            uid = firebase_client.sign_in_with_email(email, password)
+            if "@" in email:
+                uid = firebase_client.sign_in_with_email(email, password)
+            else:
+                uid = firebase_client.sign_in_with_nickname(email, password)
             if uid:
                 favorites.load()
             self._login_progress.visible = False
@@ -693,6 +712,86 @@ class SettingsPage:
             else:
                 self._login_status_text.value = "Не удалось войти. Проверьте email и пароль."
                 self._login_status_text.color = ft.colors.ERROR
+            self.page.update()
+
+        import threading
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _show_register_dialog(self, e=None):
+        """Показывает диалог регистрации по нику и паролю."""
+        self._register_nickname_field.value = ""
+        self._register_password_field.value = ""
+        self._register_status_text.value = ""
+        self._register_progress.visible = False
+        dlg = ft.AlertDialog(
+            title=ft.Text("Регистрация"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "Создайте аккаунт, чтобы синхронизировать избранное и историю чтения.",
+                        size=12, color=ft.colors.GREY_700,
+                    ),
+                    self._register_nickname_field,
+                    self._register_password_field,
+                    ft.Row([self._register_progress, self._register_status_text], spacing=8),
+                ],
+                tight=True,
+                spacing=12,
+                width=320,
+            ),
+            actions=[
+                ft.TextButton("Отмена", on_click=lambda _: self.page.close(dlg)),
+                ft.ElevatedButton(
+                    "Зарегистрироваться", icon=ft.icons.APP_REGISTRATION,
+                    on_click=lambda _: self._on_register_submit(dlg),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self._active_register_dlg = dlg
+        self.page.open(dlg)
+
+    def _on_register_submit(self, e=None, dlg=None):
+        """Выполняет регистрацию по нику и паролю."""
+        dlg = dlg or getattr(self, "_active_register_dlg", None)
+        nickname = (self._register_nickname_field.value or "").strip()
+        password = self._register_password_field.value or ""
+
+        if not nickname or not password:
+            self._register_status_text.value = "Введите ник и пароль"
+            self._register_status_text.color = ft.colors.ERROR
+            self.page.update()
+            return
+        if len(password) < 6:
+            self._register_status_text.value = "Пароль должен быть не короче 6 символов"
+            self._register_status_text.color = ft.colors.ERROR
+            self.page.update()
+            return
+
+        self._register_progress.visible = True
+        self._register_status_text.value = "Регистрация..."
+        self._register_status_text.color = ft.colors.GREY_700
+        self.page.update()
+
+        def _do():
+            from src.core.firebase_client import firebase_client
+            uid = firebase_client.register_with_nickname(nickname, password)
+            self._register_progress.visible = False
+            if uid:
+                self._register_status_text.value = "Аккаунт создан!"
+                self._register_status_text.color = ft.colors.GREEN
+                self._update_account_section()
+                if dlg:
+                    self.page.close(dlg)
+                if self.notification_manager:
+                    self.notification_manager.add_notification(
+                        title="Регистрация успешна",
+                        message=f"Вы зарегистрированы как: {nickname}",
+                        type="success",
+                    )
+            else:
+                self._register_status_text.value = "Не удалось создать аккаунт. Возможно, ник уже занят."
+                self._register_status_text.color = ft.colors.ERROR
             self.page.update()
 
         import threading

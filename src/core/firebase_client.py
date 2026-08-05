@@ -4,6 +4,7 @@ HTTP-клиент к NurBooks API Server (Firebase через сервер).
 """
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -23,6 +24,25 @@ _AUTH_TOKEN_FILE = os.path.join(DEFAULT_DATA_PATH, "auth.json")
 _IDENTITY_TOOLKIT_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
 _SECURE_TOKEN_URL = "https://securetoken.googleapis.com/v1/token"
 
+_NURBOOKS_EMAIL_DOMAIN = "nurbooks.local"
+
+
+def _nickname_to_email(nickname: str) -> str:
+    """Преобразует ник в локальную часть email (только a-z0-9_)."""
+    slug = nickname.strip().lower().replace(" ", "_")
+    slug = re.sub(r"[^a-z0-9_]", "", slug).strip("_")
+    if not slug:
+        slug = "user"
+    return f"{slug}@{_NURBOOKS_EMAIL_DOMAIN}"
+
+
+def _nickname_from_email(email: str | None) -> str | None:
+    """Достаёт ник из email вида nick@nurbooks.local."""
+    if not email:
+        return None
+    local = email.split("@")[0] if "@" in email else email
+    return local or None
+
 
 class _AuthSession:
     """Хранит ID-токен Firebase Auth и текущего пользователя (в памяти + на диске)."""
@@ -31,6 +51,7 @@ class _AuthSession:
         self._id_token: str | None = None
         self._uid: str | None = None
         self._email: str | None = None
+        self._nickname: str | None = None
         self._refresh_token: str | None = None
         self._expires_at: float = 0
         self._load()
@@ -42,6 +63,7 @@ class _AuthSession:
             self._id_token = data.get("id_token")
             self._uid = data.get("uid")
             self._email = data.get("email")
+            self._nickname = data.get("nickname")
             self._refresh_token = data.get("refresh_token")
             self._expires_at = data.get("expires_at", 0)
         except Exception:
@@ -55,6 +77,7 @@ class _AuthSession:
                     "id_token": self._id_token,
                     "uid": self._uid,
                     "email": self._email,
+                    "nickname": self._nickname,
                     "refresh_token": self._refresh_token,
                     "expires_at": self._expires_at,
                 }, f, ensure_ascii=False, indent=2)
@@ -76,13 +99,18 @@ class _AuthSession:
         return self._email
 
     @property
+    def nickname(self) -> str | None:
+        return self._nickname or _nickname_from_email(self._email)
+
+    @property
     def refresh_token(self) -> str | None:
         return self._refresh_token
 
-    def set(self, id_token: str, uid: str, email: str | None, expires_in: int, refresh_token: str | None = None):
+    def set(self, id_token: str, uid: str, email: str | None, expires_in: int, refresh_token: str | None = None, nickname: str | None = None):
         self._id_token = id_token
         self._uid = uid
         self._email = email
+        self._nickname = nickname
         self._refresh_token = refresh_token
         self._expires_at = time.time() + expires_in
         self._save()
@@ -91,6 +119,7 @@ class _AuthSession:
         self._id_token = None
         self._uid = None
         self._email = None
+        self._nickname = None
         self._refresh_token = None
         self._expires_at = 0
         self._save()
@@ -451,9 +480,68 @@ class FirebaseClient:
             email=data.get("email", email),
             expires_in=int(data.get("expiresIn", 3600)),
             refresh_token=data.get("refreshToken"),
+            nickname=_nickname_from_email(data.get("email", email)),
         )
         logger.info(f"Вход по email: uid={auth_session.uid}")
         return auth_session.uid
+
+    def sign_in_with_nickname(self, nickname: str, password: str) -> str | None:
+        """Вход по нику и паролю (как по email с локальным доменом)."""
+        email = _nickname_to_email(nickname)
+        data = _auth_request("signInWithPassword", {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True,
+        })
+        if not data or not data.get("idToken"):
+            return None
+        auth_session.set(
+            id_token=data["idToken"],
+            uid=data["localId"],
+            email=data.get("email", email),
+            expires_in=int(data.get("expiresIn", 3600)),
+            refresh_token=data.get("refreshToken"),
+            nickname=_nickname_from_email(data.get("email", email)) or nickname.strip(),
+        )
+        logger.info(f"Вход по нику: uid={auth_session.uid}")
+        return auth_session.uid
+
+    def register_with_nickname(self, nickname: str, password: str) -> str | None:
+        """Регистрация по нику и паролю (сохраняет профиль на сервере)."""
+        email = _nickname_to_email(nickname)
+        if auth_session.uid:
+            data = _auth_request("update", {
+                "idToken": auth_session.token or "",
+                "email": email,
+                "returnSecureToken": True,
+            })
+        else:
+            data = _auth_request("signUp", {
+                "email": email,
+                "password": password,
+                "returnSecureToken": True,
+            })
+        if not data or not data.get("idToken"):
+            return None
+        self._finalize_auth(data, email)
+        self._save_user_profile(nickname.strip())
+        logger.info(f"Регистрация: uid={auth_session.uid}")
+        return auth_session.uid
+
+    def _finalize_auth(self, data: dict, email: str):
+        auth_session.set(
+            id_token=data["idToken"],
+            uid=data["localId"],
+            email=data.get("email", email),
+            expires_in=int(data.get("expiresIn", 3600)),
+            refresh_token=data.get("refreshToken"),
+            nickname=_nickname_from_email(data.get("email", email)),
+        )
+
+    def _save_user_profile(self, nickname: str):
+        result = _post("/auth/register", {"nickname": nickname})
+        if result is None:
+            logger.warning("Не удалось сохранить профиль пользователя на сервере")
 
     def refresh_session(self) -> str | None:
         """Обновляет ID-токен через refreshToken (сохраняет того же пользователя)."""
@@ -489,10 +577,10 @@ class FirebaseClient:
 
     def get_current_user(self) -> dict | None:
         if auth_session.token:
-            return {"uid": auth_session.uid, "email": auth_session.email}
+            return {"uid": auth_session.uid, "email": auth_session.email, "nickname": auth_session.nickname}
         # Токен мог истечь — но сессия ещё есть, её можно обновить через refresh_token.
         if auth_session.refresh_token and auth_session._uid:
-            return {"uid": auth_session._uid, "email": auth_session._email}
+            return {"uid": auth_session._uid, "email": auth_session._email, "nickname": auth_session.nickname}
         return None
 
 

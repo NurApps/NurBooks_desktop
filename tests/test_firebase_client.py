@@ -159,3 +159,43 @@ def test_get_reading_history(monkeypatch):
     payload = [{"bookId": 1, "page": 5, "book": {"id": 1}}]
     with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response(payload)):
         assert fc.firebase_client.get_reading_history() == payload
+
+
+def test_nickname_to_email():
+    assert fc._nickname_to_email("Alice") == "alice@nurbooks.local"
+    assert fc._nickname_to_email("Алиса") == "user@nurbooks.local"
+    assert fc._nickname_to_email("  Foo Bar  ") == "foo_bar@nurbooks.local"
+
+
+def test_nickname_from_email():
+    assert fc._nickname_from_email("alice@nurbooks.local") == "alice"
+    assert fc._nickname_from_email(None) is None
+    assert fc._nickname_from_email("") is None
+
+
+def test_sign_in_with_nickname(monkeypatch, tmp_path):
+    monkeypatch.setattr(fc, "_AUTH_TOKEN_FILE", str(tmp_path / "auth.json"))
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({
+        "idToken": "tok-nick", "localId": "u-nick", "email": "alice@nurbooks.local", "expiresIn": "3600",
+    })):
+        uid = fc.firebase_client.sign_in_with_nickname("Alice", "secret")
+    assert uid == "u-nick"
+    assert fc.firebase_client.get_current_user()["nickname"] == "alice"
+
+
+def test_register_user_creates_profile(monkeypatch, tmp_path):
+    monkeypatch.setattr(fc, "_AUTH_TOKEN_FILE", str(tmp_path / "auth.json"))
+
+    calls = {"post": None}
+
+    def fake_urlopen(req, timeout=10):
+        calls["post"] = json.loads(req.data.decode())
+        return _fake_response({
+            "idToken": "tok-reg", "localId": "u-reg", "email": "new_user@nurbooks.local", "expiresIn": "3600",
+        })
+
+    with patch.object(fc.urllib.request, "urlopen", side_effect=fake_urlopen):
+        uid = fc.firebase_client.register_with_nickname("New User", "secret")
+    assert uid == "u-reg"
+    assert calls["post"] == {"nickname": "New User"}
+    assert fc.firebase_client.get_current_user()["nickname"] == "new_user"
