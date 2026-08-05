@@ -337,3 +337,14 @@ def test_reading_stats(monkeypatch):
     r = client.get("/analytics/stats?days=14", headers={"Authorization": "Bearer t"})
     assert r.status_code == 200
     assert r.json()["totalPages"] == 100
+
+
+# ============ Leaderboard ============
+
+
+def test_leaderboard(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "leaderboard", lambda days, limit: [{"nickname": "ali", "minutes": 60}])
+    r = client.get("/leaderboard?days=7&limit=5")
+    assert r.status_code == 200
+    assert r.json()[0]["nickname"] == "ali"

@@ -340,6 +340,15 @@ def get_reading_stats(days: int = Query(30, ge=1, le=90), authorization: str = H
     return fb.reading_stats(resolve_uid(authorization), days)
 
 
+# ============ Leaderboard ============
+
+
+@app.get("/leaderboard")
+def get_leaderboard(days: int = Query(7, ge=1, le=90), limit: int = Query(10, ge=1, le=50)):
+    require_firebase()
+    return fb.leaderboard(days, limit)
+
+
 # ============ Reading Progress ============
 
 

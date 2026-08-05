@@ -446,3 +446,41 @@ def _fill_days(days: list, span: int) -> list:
         date = (today - timedelta(days=i)).strftime("%Y-%m-%d")
         filled.append(by_date.get(date, {"date": date, "pages": 0, "minutes": 0, "sessions": 0}))
     return filled
+
+
+# ---- Leaderboard ----
+
+def leaderboard(days: int = 7, limit: int = 10) -> list:
+    """Топ читателей по времени чтения за последние N дней."""
+    from datetime import timedelta
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    by_user = {}
+    docs = _firestore.collection("analytics_events").where("timestamp", ">=", cutoff).stream()
+    for doc in docs:
+        d = doc.to_dict()
+        if d.get("eventType") != "read":
+            continue
+        uid = d.get("userId", "public")
+        if uid == "public":
+            continue
+        entry = by_user.setdefault(uid, {"minutes": 0, "pages": 0, "sessions": 0})
+        entry["minutes"] += round(int(d.get("durationSeconds", 0) or 0) / 60)
+        entry["pages"] += int(d.get("page", 0) or 0)
+        entry["sessions"] += 1
+    ranked = sorted(by_user.items(), key=lambda kv: (kv[1]["minutes"], kv[1]["pages"]), reverse=True)
+    result = []
+    for uid, data in ranked[:limit]:
+        user_doc = _firestore.collection("users").document(str(uid)).get()
+        nickname = user_doc.to_dict().get("nickname") if user_doc.exists else None
+        result.append({
+            "uid": uid,
+            "nickname": nickname or _default_nickname(uid),
+            "minutes": data["minutes"],
+            "pages": data["pages"],
+            "sessions": data["sessions"],
+        })
+    return result
+
+
+def _default_nickname(uid: str) -> str:
+    return f"Читатель-{str(uid)[:6]}"

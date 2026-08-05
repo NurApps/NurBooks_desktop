@@ -386,6 +386,10 @@ class MyLibraryPage:
                     text="Статистика",
                     content=self._create_statistics_tab()
                 ),
+                ft.Tab(
+                    text="Рейтинг читателей",
+                    content=self._create_leaderboard_tab()
+                ),
             ],
             expand=1,
         )
@@ -729,6 +733,90 @@ class MyLibraryPage:
             padding=ft.padding.symmetric(horizontal=10, vertical=14),
             bgcolor=ft.colors.SURFACE_VARIANT,
             border_radius=10,
+            expand=True,
+        )
+
+    # ============ Рейтинг читателей ============
+
+    def _create_leaderboard_tab(self) -> ft.Control:
+        """Вкладка с рейтингом читателей (как Duolingo)."""
+        self._leaderboard_container = ft.Container(
+            content=ft.Row([ft.ProgressRing(width=24, height=24), ft.Text("Загрузка рейтинга...", size=14, color=ft.colors.GREY)],
+                           spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            alignment=ft.alignment.center,
+            expand=True,
+        )
+        threading.Thread(target=self._load_leaderboard, daemon=True).start()
+        return self._leaderboard_container
+
+    def _load_leaderboard(self):
+        try:
+            from src.core.firebase_client import firebase_client
+            if not firebase_client.is_initialized():
+                self._leaderboard_container.content = ft.Text("Рейтинг доступен при подключении к серверу", size=14, color=ft.colors.GREY)
+                self.page.update()
+                return
+            data = firebase_client.get_leaderboard(days=7, limit=10)
+            self._leaderboard_container.content = self._build_leaderboard_content(data)
+            self.page.update()
+        except Exception as e:
+            self._leaderboard_container.content = ft.Text(f"Не удалось загрузить рейтинг: {e}", size=14, color=ft.colors.GREY)
+            self.page.update()
+
+    def _build_leaderboard_content(self, data: list) -> ft.Control:
+        medals = {0: "🥇", 1: "🥈", 2: "🥉"}
+        max_min = max((x.get("minutes", 0) for x in data), default=0) or 1
+
+        rows = []
+        for i, entry in enumerate(data):
+            minutes = entry.get("minutes", 0)
+            nickname = entry.get("nickname", "Читатель")
+            bar_w = max(6, int(220 * (minutes / max_min)))
+            medal = medals.get(i, f"{i + 1}.")
+            rows.append(ft.Container(
+                content=ft.Row([
+                    ft.Text(medal, size=18, width=36),
+                    ft.Icon(ft.icons.ACCOUNT_CIRCLE, color=ft.colors.PRIMARY, size=24),
+                    ft.Text(nickname, weight=ft.FontWeight.BOLD, size=14, expand=True, overflow=ft.TextOverflow.ELLIPSIS),
+                    ft.Container(
+                        width=bar_w, height=10,
+                        bgcolor=ft.colors.PRIMARY_CONTAINER if i > 0 else ft.colors.AMBER,
+                        border_radius=ft.border_radius.all(5),
+                    ),
+                    ft.Text(f"{minutes} мин", size=12, color=ft.colors.GREY_700, width=70, text_align=ft.TextAlign.END),
+                ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                bgcolor=ft.colors.SURFACE,
+                border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+                border_radius=10,
+                margin=ft.margin.only(bottom=6),
+            ))
+
+        if not rows:
+            empty = ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.icons.EMOJI_EVENTS, size=48, color=ft.colors.GREY),
+                    ft.Text("Рейтинг пуст", size=16, color=ft.colors.GREY),
+                    ft.Text("Читайте книги во встроенной читалке — и попадайте в топ!", size=12, color=ft.colors.GREY_600),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                padding=30,
+                alignment=ft.alignment.center,
+            )
+            return empty
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.icons.EMOJI_EVENTS, color=ft.colors.AMBER, size=22),
+                    ft.Text("Топ читателей за неделю", size=18, weight=ft.FontWeight.BOLD),
+                ], spacing=8),
+                ft.Divider(height=8),
+                *rows,
+                ft.Divider(height=12),
+                ft.Text("Считается время чтения во встроенной читалке. Войдите в аккаунт, чтобы попасть в рейтинг.",
+                        size=11, color=ft.colors.GREY_600),
+            ], scroll=ft.ScrollMode.AUTO),
+            padding=16,
             expand=True,
         )
 

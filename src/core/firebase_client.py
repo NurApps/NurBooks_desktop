@@ -463,6 +463,12 @@ class FirebaseClient:
         data = _get(f"/analytics/stats?days={days}")
         return data or {"days": [], "totalPages": 0, "totalMinutes": 0, "totalSessions": 0, "booksRead": 0}
 
+    # ---- Leaderboard ----
+
+    def get_leaderboard(self, days: int = 7, limit: int = 10) -> list[dict]:
+        data = _get(f"/leaderboard?days={days}&limit={limit}")
+        return data or []
+
     # ---- Reading History ----
 
     def get_reading_history(self, limit: int = 50) -> list[dict]:
