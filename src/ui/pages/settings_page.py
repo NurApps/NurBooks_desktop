@@ -301,6 +301,18 @@ class SettingsPage:
                                         ),
                                     ]
                                 ),
+                                ft.Divider(),
+                                ft.Row(
+                                    [
+                                        ft.Text("Экспорт данных:"),
+                                        ft.Container(expand=True),
+                                        ft.ElevatedButton(
+                                            "Экспортировать в JSON",
+                                            icon=ft.icons.DOWNLOAD,
+                                            on_click=self._on_export_data,
+                                        ),
+                                    ]
+                                ),
                             ],
                             spacing=10,
                         ),
@@ -517,6 +529,63 @@ class SettingsPage:
             )
         except Exception:
             pass
+
+    def _on_export_data(self, e):
+        """Экспорт данных пользователя в JSON-файл."""
+        picker = ft.FilePicker(on_result=self._on_export_picked)
+        self.page.overlay.append(picker)
+        self.page.update()
+        picker.save_file(
+            dialog_title="Экспорт данных NurBooks",
+            file_name="nurbooks_export.json",
+            allowed_extensions=["json"],
+        )
+
+    def _on_export_picked(self, e: ft.FilePickerResultEvent):
+        """Сохраняет собранные данные в выбранный файл."""
+        path = e.path
+        if not path:
+            return
+        try:
+            import json
+            from datetime import datetime
+
+            from src.core.database import Database
+            from src.core.favorites import favorites
+            from src.core.wishlist import wishlist
+
+            db = Database()
+            data = {
+                "app": "NurBooks",
+                "exportedAt": datetime.now().isoformat(),
+                "favorites": favorites.get_favorites(),
+                "wishlist": wishlist.get_wishlist(),
+                "readingHistory": db.get_reading_history(),
+                "bookmarks": [
+                    {"book_id": bm.book_id, "page": bm.page_number, "timestamp": bm.timestamp}
+                    for bm, _ in db.get_all_bookmarks_with_books()
+                ],
+                "readingProgress": db.get_all_reading_progress(),
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            if self.notification_manager:
+                self.notification_manager.add_notification(
+                    title="Экспорт завершён",
+                    message=f"Данные сохранены в {path}",
+                    type="success",
+                )
+            self.page.snack_bar = ft.SnackBar(content=ft.Text("Данные экспортированы!"), action="OK")
+            self.page.snack_bar.open = True
+            self.page.update()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(f"Ошибка экспорта: {ex}"),
+                bgcolor=ft.colors.ERROR,
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
 
     def _on_save_settings(self, e):
         """Сохранить настройки"""
