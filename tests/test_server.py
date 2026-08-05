@@ -348,3 +348,50 @@ def test_leaderboard(monkeypatch):
     r = client.get("/leaderboard?days=7&limit=5")
     assert r.status_code == 200
     assert r.json()[0]["nickname"] == "ali"
+
+
+# ============ Libraries ============
+
+
+def test_create_library(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "create_library", lambda uid, title, description, visibility, book_ids: {"id": "lib1", "ownerUid": uid, "title": title})
+    r = client.post("/libraries", json={"title": "Моя библиотека", "visibility": "public", "bookIds": [1, 2]}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json()["id"] == "lib1"
+
+
+def test_list_libraries(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "list_libraries", lambda uid: [{"id": "lib1"}])
+    r = client.get("/libraries", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json()[0]["id"] == "lib1"
+
+
+def test_join_library_invalid_code(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "get_library", lambda lib_id: {"id": "lib1"})
+    monkeypatch.setattr(fb, "join_library_by_code", lambda uid, code: None)
+    r = client.post("/libraries/lib1/join", json={"inviteCode": "BAD1"}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 403
+
+
+def test_join_library_valid_code(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "get_library", lambda lib_id: {"id": "lib1"})
+    monkeypatch.setattr(fb, "join_library_by_code", lambda uid, code: "lib1")
+    r = client.post("/libraries/lib1/join", json={"inviteCode": "GOOD1"}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+
+
+def test_add_book_to_library_forbidden(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "add_book_to_library", lambda lid, uid, bid: False)
+    r = client.post("/libraries/lib1/books", json={"bookId": 7}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 403

@@ -66,6 +66,24 @@ class RatingUpsert(BaseModel):
     nickname: str | None = None
 
 
+class LibraryCreate(BaseModel):
+    title: str
+    description: str = ""
+    visibility: str = "public"
+    bookIds: list[int] = []
+
+
+class LibraryUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    visibility: str | None = None
+    bookIds: list[int] | None = None
+
+
+class LibraryJoin(BaseModel):
+    inviteCode: str
+
+
 class AnalyticsEventCreate(BaseModel):
     eventType: str
     bookId: int

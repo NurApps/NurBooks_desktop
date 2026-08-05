@@ -484,3 +484,138 @@ def leaderboard(days: int = 7, limit: int = 10) -> list:
 
 def _default_nickname(uid: str) -> str:
     return f"Читатель-{str(uid)[:6]}"
+
+
+# ---- Libraries (общие библиотеки) ----
+
+def _library_to_dict(doc) -> dict | None:
+    data = doc.to_dict()
+    if not data:
+        return None
+    data["id"] = doc.id
+    data["memberCount"] = len(data.get("memberUids", [])) + 1  # + владелец
+    data["bookCount"] = len(data.get("bookIds", []))
+    return data
+
+
+def create_library(uid: str, title: str, description: str, visibility: str, book_ids: list) -> dict:
+    doc_ref = _firestore.collection("libraries").document()
+    lib = {
+        "ownerUid": uid,
+        "ownerNickname": _owner_nickname(uid),
+        "title": (title or "Библиотека").strip()[:120],
+        "description": (description or "").strip()[:500],
+        "visibility": visibility if visibility in ("public", "private") else "public",
+        "bookIds": [int(b) for b in (book_ids or [])],
+        "memberUids": [],
+        "inviteCode": _generate_invite_code(),
+        "createdAt": datetime.now().isoformat(),
+        "updatedAt": datetime.now().isoformat(),
+    }
+    doc_ref.set(lib)
+    return _library_to_dict(doc_ref)
+
+
+def _owner_nickname(uid: str) -> str:
+    doc = _firestore.collection("users").document(str(uid)).get()
+    if doc.exists:
+        return doc.to_dict().get("nickname") or _default_nickname(uid)
+    return _default_nickname(uid)
+
+
+def _generate_invite_code(length: int = 6) -> str:
+    import random
+    import string
+    alphabet = string.ascii_uppercase + string.digits
+    while True:
+        code = "".join(random.choice(alphabet) for _ in range(length))
+        exists = False
+        for d in _firestore.collection("libraries").where("inviteCode", "==", code).limit(1).stream():
+            exists = True
+            break
+        if not exists:
+            return code
+
+
+def get_library(lib_id: str) -> dict | None:
+    doc = _firestore.collection("libraries").document(str(lib_id)).get()
+    return _library_to_dict(doc) if doc.exists else None
+
+
+def list_libraries(uid: str) -> list:
+    """Публичные библиотеки + свои + те, куда добавлен пользователь."""
+    result = {}
+    for doc in _firestore.collection("libraries").stream():
+        d = doc.to_dict()
+        if not d:
+            continue
+        if d.get("visibility") == "public" or d.get("ownerUid") == uid or uid in d.get("memberUids", []):
+            result[doc.id] = _library_to_dict(doc)
+    return sorted(result.values(), key=lambda x: x.get("updatedAt", ""), reverse=True)
+
+
+def update_library(lib_id: str, uid: str, data: dict) -> bool:
+    doc = _firestore.collection("libraries").document(str(lib_id)).get()
+    if not doc.exists or doc.to_dict().get("ownerUid") != uid:
+        return False
+    updates = {}
+    if "title" in data and data["title"] is not None:
+        updates["title"] = str(data["title"]).strip()[:120]
+    if "description" in data and data["description"] is not None:
+        updates["description"] = str(data["description"]).strip()[:500]
+    if "visibility" in data and data["visibility"] in ("public", "private"):
+        updates["visibility"] = data["visibility"]
+    if "bookIds" in data and data["bookIds"] is not None:
+        updates["bookIds"] = [int(b) for b in data["bookIds"]]
+    updates["updatedAt"] = datetime.now().isoformat()
+    doc.reference.update(updates)
+    return True
+
+
+def delete_library(lib_id: str, uid: str) -> bool:
+    doc = _firestore.collection("libraries").document(str(lib_id)).get()
+    if not doc.exists or doc.to_dict().get("ownerUid") != uid:
+        return False
+    doc.reference.delete()
+    return True
+
+
+def add_book_to_library(lib_id: str, uid: str, book_id: int) -> bool:
+    doc = _firestore.collection("libraries").document(str(lib_id)).get()
+    if not doc.exists:
+        return False
+    d = doc.to_dict()
+    if d.get("ownerUid") != uid:
+        return False
+    books = [int(b) for b in d.get("bookIds", [])]
+    if book_id not in books:
+        books.append(book_id)
+    doc.reference.update({"bookIds": books, "updatedAt": datetime.now().isoformat()})
+    return True
+
+
+def remove_book_from_library(lib_id: str, uid: str, book_id: int) -> bool:
+    doc = _firestore.collection("libraries").document(str(lib_id)).get()
+    if not doc.exists:
+        return False
+    d = doc.to_dict()
+    if d.get("ownerUid") != uid:
+        return False
+    books = [int(b) for b in d.get("bookIds", []) if int(b) != int(book_id)]
+    doc.reference.update({"bookIds": books, "updatedAt": datetime.now().isoformat()})
+    return True
+
+
+def join_library_by_code(uid: str, invite_code: str) -> str | None:
+    """Вступление в библиотеку по коду. Возвращает id библиотеки или None."""
+    code = invite_code.strip().upper()
+    for doc in _firestore.collection("libraries").where("inviteCode", "==", code).limit(1).stream():
+        d = doc.to_dict()
+        if d.get("ownerUid") == uid:
+            return doc.id
+        members = d.get("memberUids", [])
+        if uid not in members:
+            members.append(uid)
+            doc.reference.update({"memberUids": members, "updatedAt": datetime.now().isoformat()})
+        return doc.id
+    return None

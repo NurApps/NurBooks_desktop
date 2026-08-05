@@ -20,6 +20,7 @@ from src.ui.pages.authors_page import AuthorsPage
 from src.ui.pages.book_proposal_page import BookProposalPage
 from src.ui.pages.book_view import BookViewPage
 from src.ui.pages.catalog_page import CatalogPage
+from src.ui.pages.libraries_page import LibrariesPage
 from src.ui.pages.my_library import MyLibraryPage
 from src.ui.pages.pdf_reader import PDFReaderPage, on_app_exit
 from src.ui.pages.settings_page import SettingsPage
@@ -332,6 +333,11 @@ class NurBooksApp:
                     label="Предложить книгу"
                 ),
                 ft.NavigationRailDestination(
+                    icon=ft.icons.LIBRARY_BOOKS,
+                    selected_icon=ft.icons.LIBRARY_BOOKS,
+                    label="Библиотеки"
+                ),
+                ft.NavigationRailDestination(
                     icon=ft.icons.SETTINGS,
                     selected_icon=ft.icons.SETTINGS,
                     label="Настройки"
@@ -576,8 +582,10 @@ class NurBooksApp:
         elif index == 3:
             self._show_book_proposal_form(update_ui=False)
         elif index == 4:
-            self._show_settings_page(update_ui=False)
+            self._show_libraries_page(update_ui=False)
         elif index == 5:
+            self._show_settings_page(update_ui=False)
+        elif index == 6:
             self._show_about_page(update_ui=False)
 
         self.nav_rail.selected_index = index
@@ -662,6 +670,19 @@ class NurBooksApp:
                            on_read_book=self._show_pdf_reader)
         self.main_content.content = lp.build()
         self.current_page = "library"
+
+    def _show_libraries_page(self, update_ui: bool = True):
+        """Показывает раздел общих библиотек."""
+        lib_page = LibrariesPage(
+            page=self.page,
+            notification_manager=self.notification_manager,
+            on_back=self._show_catalog_page,
+            on_read_book=self._show_pdf_reader,
+        )
+        self.main_content.content = lib_page.build()
+        self.current_page = "libraries"
+        if update_ui:
+            self.page.update()
 
     def _show_settings_page(self, update_ui: bool = True):
         """Показывает страницу настроек"""

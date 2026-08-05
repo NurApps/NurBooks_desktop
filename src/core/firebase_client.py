@@ -469,6 +469,40 @@ class FirebaseClient:
         data = _get(f"/leaderboard?days={days}&limit={limit}")
         return data or []
 
+    # ---- Libraries (общие библиотеки) ----
+
+    def create_library(self, title: str, description: str = "", visibility: str = "public", book_ids: list = None) -> dict | None:
+        data = _post("/libraries", {
+            "title": title, "description": description, "visibility": visibility,
+            "bookIds": book_ids or [],
+        })
+        return data or None
+
+    def get_libraries(self) -> list[dict]:
+        data = _get("/libraries")
+        return data or []
+
+    def get_library(self, lib_id: str) -> dict | None:
+        return _get(f"/libraries/{lib_id}")
+
+    def update_library(self, lib_id: str, **fields) -> bool:
+        result = _put(f"/libraries/{lib_id}", {k: v for k, v in fields.items() if v is not None})
+        return result is not None
+
+    def delete_library(self, lib_id: str) -> bool:
+        return _delete(f"/libraries/{lib_id}")
+
+    def join_library(self, lib_id: str, invite_code: str) -> bool:
+        result = _post(f"/libraries/{lib_id}/join", {"inviteCode": invite_code})
+        return result is not None
+
+    def add_book_to_library(self, lib_id: str, book_id: int) -> bool:
+        result = _post(f"/libraries/{lib_id}/books", {"bookId": book_id})
+        return result is not None
+
+    def remove_book_from_library(self, lib_id: str, book_id: int) -> bool:
+        return _delete(f"/libraries/{lib_id}/books/{book_id}")
+
     # ---- Reading History ----
 
     def get_reading_history(self, limit: int = 50) -> list[dict]:

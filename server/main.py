@@ -37,6 +37,9 @@ from models import (  # noqa: E402
     BookmarkCreate,
     BookUpdate,
     FavoriteCreate,
+    LibraryCreate,
+    LibraryJoin,
+    LibraryUpdate,
     RatingUpsert,
     ReadingProgressSave,
     UserUpsert,
@@ -347,6 +350,78 @@ def get_reading_stats(days: int = Query(30, ge=1, le=90), authorization: str = H
 def get_leaderboard(days: int = Query(7, ge=1, le=90), limit: int = Query(10, ge=1, le=50)):
     require_firebase()
     return fb.leaderboard(days, limit)
+
+
+# ============ Libraries ============
+
+
+@app.post("/libraries")
+def create_library(data: LibraryCreate, authorization: str = Header("")):
+    require_firebase()
+    uid = resolve_uid(authorization)
+    return fb.create_library(uid, data.title, data.description, data.visibility, data.bookIds)
+
+
+@app.get("/libraries")
+def get_libraries(authorization: str = Header("")):
+    require_firebase()
+    return fb.list_libraries(resolve_uid(authorization))
+
+
+@app.get("/libraries/{lib_id}")
+def get_library(lib_id: str, authorization: str = Header("")):
+    require_firebase()
+    uid = resolve_uid(authorization)
+    lib = fb.get_library(lib_id)
+    if not lib:
+        raise HTTPException(404, "Library not found")
+    if lib.get("visibility") != "public" and lib.get("ownerUid") != uid and uid not in lib.get("memberUids", []):
+        raise HTTPException(403, "Private library")
+    return lib
+
+
+@app.put("/libraries/{lib_id}")
+def update_library(lib_id: str, data: LibraryUpdate, authorization: str = Header("")):
+    require_firebase()
+    if not fb.update_library(lib_id, resolve_uid(authorization), data.model_dump(exclude_unset=True)):
+        raise HTTPException(403, "Only owner can edit library")
+    return {"status": "success"}
+
+
+@app.delete("/libraries/{lib_id}")
+def delete_library(lib_id: str, authorization: str = Header("")):
+    require_firebase()
+    if not fb.delete_library(lib_id, resolve_uid(authorization)):
+        raise HTTPException(403, "Only owner can delete library")
+    return {"status": "success"}
+
+
+@app.post("/libraries/{lib_id}/join")
+def join_library(lib_id: str, data: LibraryJoin, authorization: str = Header("")):
+    require_firebase()
+    lib = fb.get_library(lib_id)
+    if not lib:
+        raise HTTPException(404, "Library not found")
+    joined = fb.join_library_by_code(resolve_uid(authorization), data.inviteCode)
+    if not joined or joined != lib_id:
+        raise HTTPException(403, "Invalid invite code")
+    return {"status": "success"}
+
+
+@app.post("/libraries/{lib_id}/books")
+def add_book_to_library(lib_id: str, data: FavoriteCreate, authorization: str = Header("")):
+    require_firebase()
+    if not fb.add_book_to_library(lib_id, resolve_uid(authorization), data.bookId):
+        raise HTTPException(403, "Only owner can edit library")
+    return {"status": "success"}
+
+
+@app.delete("/libraries/{lib_id}/books/{book_id}")
+def remove_book_from_library(lib_id: str, book_id: int, authorization: str = Header("")):
+    require_firebase()
+    if not fb.remove_book_from_library(lib_id, resolve_uid(authorization), book_id):
+        raise HTTPException(403, "Only owner can edit library")
+    return {"status": "success"}
 
 
 # ============ Reading Progress ============
