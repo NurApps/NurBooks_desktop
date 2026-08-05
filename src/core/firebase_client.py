@@ -503,6 +503,18 @@ class FirebaseClient:
     def remove_book_from_library(self, lib_id: str, book_id: int) -> bool:
         return _delete(f"/libraries/{lib_id}/books/{book_id}")
 
+    def get_library_rating(self, lib_id: str) -> dict:
+        data = _get(f"/libraries/{lib_id}/rating")
+        return data or {}
+
+    def rate_library(self, lib_id: str, rating: int) -> dict:
+        data = _put(f"/libraries/{lib_id}/rating", {"rating": rating})
+        return data or {}
+
+    def remove_library_rating(self, lib_id: str) -> dict:
+        data = _delete(f"/libraries/{lib_id}/rating")
+        return data or {}
+
     # ---- Reading History ----
 
     def get_reading_history(self, limit: int = 50) -> list[dict]:

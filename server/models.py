@@ -84,6 +84,10 @@ class LibraryJoin(BaseModel):
     inviteCode: str
 
 
+class LibraryRatingUpsert(BaseModel):
+    rating: int
+
+
 class AnalyticsEventCreate(BaseModel):
     eventType: str
     bookId: int

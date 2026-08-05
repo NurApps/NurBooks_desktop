@@ -39,6 +39,7 @@ from models import (  # noqa: E402
     FavoriteCreate,
     LibraryCreate,
     LibraryJoin,
+    LibraryRatingUpsert,
     LibraryUpdate,
     RatingUpsert,
     ReadingProgressSave,
@@ -422,6 +423,27 @@ def remove_book_from_library(lib_id: str, book_id: int, authorization: str = Hea
     if not fb.remove_book_from_library(lib_id, resolve_uid(authorization), book_id):
         raise HTTPException(403, "Only owner can edit library")
     return {"status": "success"}
+
+
+@app.get("/libraries/{lib_id}/rating")
+def get_library_rating(lib_id: str, authorization: str = Header("")):
+    require_firebase()
+    return fb.library_rating(lib_id, resolve_uid(authorization))
+
+
+@app.put("/libraries/{lib_id}/rating")
+def put_library_rating(lib_id: str, data: LibraryRatingUpsert, authorization: str = Header("")):
+    require_firebase()
+    uid = resolve_uid(authorization)
+    if not fb.get_library(lib_id):
+        raise HTTPException(404, "Library not found")
+    return fb.rate_library(uid, lib_id, data.rating)
+
+
+@app.delete("/libraries/{lib_id}/rating")
+def delete_library_rating(lib_id: str, authorization: str = Header("")):
+    require_firebase()
+    return fb.remove_library_rating(resolve_uid(authorization), lib_id)
 
 
 # ============ Reading Progress ============

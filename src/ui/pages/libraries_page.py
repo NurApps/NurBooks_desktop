@@ -23,6 +23,7 @@ class LibrariesPage:
         self._libraries: list[dict] = []
         self._all_books = []
         self._current_lib: dict | None = None
+        self._current_rating: dict = {}
         self._list_container = ft.Container(expand=True)
         self.content = self._create_content()
         self._load_all_books()
@@ -91,6 +92,11 @@ class LibrariesPage:
                 return
             data = firebase_client.get_libraries()
             self._libraries = data or []
+            for lib in self._libraries:
+                try:
+                    lib["rating"] = firebase_client.get_library_rating(lib.get("id")) or {}
+                except Exception:
+                    lib["rating"] = {}
             self._rebuild_list_view()
             self.page.update()
         except Exception as e:
@@ -120,6 +126,7 @@ class LibrariesPage:
     def _create_library_card(self, lib: dict) -> ft.Control:
         visibility = "Публичная" if lib.get("visibility") == "public" else "Приватная"
         owner = lib.get("ownerNickname") or "Владелец"
+        rating = lib.get("rating") or {}
         return ft.Container(
             content=ft.Row([
                 ft.Container(
@@ -138,6 +145,7 @@ class LibrariesPage:
                     ),
                     ft.Text(lib.get("description", ""), size=12, color=ft.colors.GREY,
                             max_lines=2, overflow=ft.TextOverflow.ELLIPSIS) if lib.get("description") else ft.Container(),
+                    self._rating_line(rating) if rating else ft.Container(),
                 ], expand=True, spacing=3),
                 ft.Container(
                     content=ft.Text(visibility, size=11),
@@ -165,6 +173,7 @@ class LibrariesPage:
                     self._notify("Ошибка", "Библиотека не найдена", "error")
                     return
                 self._current_lib = lib
+                self._load_rating(lib_id, lambda r: self._set_rating_loaded(lib_id, r))
                 self._build_library_detail()
                 self.page.update()
             except Exception as e:
@@ -202,6 +211,8 @@ class LibrariesPage:
             ft.TextButton("Копировать", on_click=lambda e, code=lib.get("inviteCode", ""): self._copy_invite(code)),
         ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
+        rating_block = self._build_rating_block(lib_id=lib.get("id"))
+
         actions = []
         if is_owner:
             actions.append(ft.ElevatedButton("Добавить книгу", icon=ft.icons.ADD, on_click=self._show_add_book_dialog))
@@ -227,6 +238,7 @@ class LibrariesPage:
                 ft.Container(
                     content=ft.Column([
                         invite_row,
+                        rating_block,
                         *book_cards,
                         empty,
                     ], spacing=8),
@@ -270,6 +282,109 @@ class LibrariesPage:
             return (user or {}).get("uid", "")
         except Exception:
             return ""
+
+    # ---------- Рейтинг библиотеки ----------
+
+    def _star_row(self, value: int, size: int = 22) -> ft.Row:
+        return ft.Row(
+            [ft.Icon(ft.icons.STAR_RATE if i <= value else ft.icons.STAR_BORDER,
+                     color=ft.colors.AMBER if i <= value else ft.colors.OUTLINE, size=size)
+             for i in range(1, 6)],
+            spacing=2, tight=True,
+        )
+
+    def _rating_line(self, rating: dict) -> ft.Control:
+        avg = rating.get("average") or 0
+        count = rating.get("count") or 0
+        if count == 0:
+            return ft.Text("Ещё нет оценок", size=12, color=ft.colors.GREY)
+        return ft.Row([
+            self._star_row(round(avg)),
+            ft.Text(f"{avg:.1f} ({count} {'оценка' if count % 10 == 1 and count % 100 != 11 else 'оценки' if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14) else 'оценок'})",
+                    size=12, color=ft.colors.ON_SURFACE_VARIANT),
+        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+    def _build_rating_block(self, lib_id: str) -> ft.Control:
+        rating = self._current_rating or {}
+        my = rating.get("myRating")
+        avg = rating.get("average") or 0
+        count = rating.get("count") or 0
+
+        stars = ft.Row(
+            [ft.IconButton(
+                icon=ft.icons.STAR_RATE if (my or 0) >= i else ft.icons.STAR_BORDER,
+                icon_color=ft.colors.AMBER,
+                icon_size=28,
+                tooltip=f"{i}",
+                on_click=lambda e, n=i: self._set_rating(lib_id, n),
+            ) for i in range(1, 6)],
+            spacing=0, tight=True,
+        )
+
+        summary = ft.Text(
+            f"{avg:.1f} из 5 · {count} {'оценка' if count % 10 == 1 and count % 100 != 11 else 'оценки' if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14) else 'оценок'}" if count else "Пока нет оценок",
+            size=12, color=ft.colors.ON_SURFACE_VARIANT,
+        )
+
+        clear_btn = ft.TextButton("Снять оценку", on_click=lambda e: self._clear_rating(lib_id)) if my else ft.Container()
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Text("Оценить библиотеку", size=13, weight=ft.FontWeight.BOLD),
+                    ft.Container(expand=True),
+                    summary,
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Row([stars, clear_btn], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ], spacing=4),
+            padding=ft.padding.symmetric(horizontal=14, vertical=10),
+            bgcolor=ft.colors.SECONDARY_CONTAINER,
+            border_radius=12,
+        )
+
+    def _load_rating(self, lib_id: str, callback):
+        def _do():
+            try:
+                from src.core.firebase_client import firebase_client
+                rating = firebase_client.get_library_rating(lib_id) or {}
+            except Exception:
+                rating = {}
+            callback(rating)
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _set_rating_loaded(self, lib_id: str, rating: dict):
+        self._current_rating = rating
+        if self._current_lib is not None and self._current_lib.get("id") == lib_id:
+            self._build_library_detail()
+            self.page.update()
+
+    def _set_rating(self, lib_id: str, rating: int):
+        def _do():
+            try:
+                from src.core.firebase_client import firebase_client
+                new_rating = firebase_client.rate_library(lib_id, rating) or {}
+                self._current_rating = new_rating
+                self._rebuild_list_view()
+                if self._current_lib is not None:
+                    self._build_library_detail()
+                self.page.update()
+            except Exception:
+                self._notify("Ошибка", "Не удалось поставить оценку", "error")
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _clear_rating(self, lib_id: str):
+        def _do():
+            try:
+                from src.core.firebase_client import firebase_client
+                new_rating = firebase_client.remove_library_rating(lib_id) or {}
+                self._current_rating = new_rating
+                self._rebuild_list_view()
+                if self._current_lib is not None:
+                    self._build_library_detail()
+                self.page.update()
+            except Exception:
+                self._notify("Ошибка", "Не удалось снять оценку", "error")
+        threading.Thread(target=_do, daemon=True).start()
 
     def _read_book(self, book):
         if self.on_read_book:

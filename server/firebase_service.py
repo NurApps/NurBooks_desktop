@@ -619,3 +619,52 @@ def join_library_by_code(uid: str, invite_code: str) -> str | None:
             doc.reference.update({"memberUids": members, "updatedAt": datetime.now().isoformat()})
         return doc.id
     return None
+
+
+def rate_library(uid: str, lib_id: str, rating: int) -> dict:
+    """Оценка библиотеки (1-5). Возвращает актуальный рейтинг библиотеки."""
+    lib = _firestore.collection("libraries").document(str(lib_id)).get()
+    if not lib.exists:
+        return {}
+    doc_ref = _firestore.collection("library_ratings").document(f"{lib_id}_{uid}")
+    data = {
+        "libraryId": lib_id,
+        "userId": uid,
+        "rating": max(1, min(5, int(rating))),
+        "updatedAt": datetime.now().isoformat(),
+    }
+    if not doc_ref.get().exists:
+        data["createdAt"] = datetime.now().isoformat()
+    doc_ref.set(data, merge=True)
+    return library_rating(lib_id, uid)
+
+
+def remove_library_rating(uid: str, lib_id: str) -> dict:
+    """Снятие оценки с библиотеки. Возвращает актуальный рейтинг библиотеки."""
+    doc = _firestore.collection("library_ratings").document(f"{lib_id}_{uid}").get()
+    if doc.exists and doc.to_dict().get("userId") == uid:
+        doc.reference.delete()
+    return library_rating(lib_id, uid)
+
+
+def library_rating(lib_id: str, uid: str = "public") -> dict:
+    """Рейтинг библиотеки: среднее, количество оценок и оценка текущего пользователя."""
+    total = 0
+    count = 0
+    distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    user_rating = None
+    docs = _firestore.collection("library_ratings").where("libraryId", "==", lib_id).stream()
+    for doc in docs:
+        d = doc.to_dict()
+        r = d.get("rating", 0)
+        total += r
+        count += 1
+        distribution[r] = distribution.get(r, 0) + 1
+        if d.get("userId") == uid:
+            user_rating = r
+    return {
+        "average": round(total / count, 2) if count else 0,
+        "count": count,
+        "distribution": distribution,
+        "myRating": user_rating,
+    }

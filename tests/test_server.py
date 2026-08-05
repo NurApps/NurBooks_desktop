@@ -395,3 +395,40 @@ def test_add_book_to_library_forbidden(monkeypatch):
     monkeypatch.setattr(fb, "add_book_to_library", lambda lid, uid, bid: False)
     r = client.post("/libraries/lib1/books", json={"bookId": 7}, headers={"Authorization": "Bearer t"})
     assert r.status_code == 403
+
+
+def test_library_rating_get(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "library_rating", lambda lib_id, uid: {"average": 4.5, "count": 2, "myRating": 5})
+    r = client.get("/libraries/lib1/rating", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json()["average"] == 4.5
+    assert r.json()["myRating"] == 5
+
+
+def test_library_rating_put(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "get_library", lambda lib_id: {"id": lib_id})
+    monkeypatch.setattr(fb, "rate_library", lambda uid, lib_id, rating: {"average": 4.0, "count": 1, "myRating": 4})
+    r = client.put("/libraries/lib1/rating", json={"rating": 4}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json()["myRating"] == 4
+
+
+def test_library_rating_put_not_found(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "get_library", lambda lib_id: None)
+    r = client.put("/libraries/lib1/rating", json={"rating": 4}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 404
+
+
+def test_library_rating_delete(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "remove_library_rating", lambda uid, lib_id: {"average": 0, "count": 0, "myRating": None})
+    r = client.delete("/libraries/lib1/rating", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json()["myRating"] is None
