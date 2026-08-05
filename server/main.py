@@ -3,10 +3,34 @@ NurBooks API Server — прокси между десктоп-приложен�
 """
 import os
 
-import firebase_service as fb
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from models import (
+
+def _load_env_file():
+    """Загружает переменные окружения из .env для локальной разработки."""
+    for path in ("../.env", ".env"):
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+        except Exception:
+            pass
+        return
+
+
+_load_env_file()
+
+import firebase_service as fb  # noqa: E402
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from models import (  # noqa: E402
     AnalyticsEventCreate,
     AuthorCreate,
     BookCreate,
@@ -15,7 +39,7 @@ from models import (
     FavoriteCreate,
     ReadingProgressSave,
 )
-from rate_limit import RateLimitMiddleware
+from rate_limit import RateLimitMiddleware  # noqa: E402
 
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
 APP_VERSION = "1.4.0 Beta"

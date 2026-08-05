@@ -5,9 +5,43 @@ import os
 import sys
 from pathlib import Path
 
-# API сервер — заполнить после деплоя на Render
-API_BASE_URL = "https://nurbooks-api.onrender.com"
-API_KEY = ""
+
+def _load_env_file():
+    """Загружает переменные окружения из .env (не перезаписывая уже заданные).
+
+    Ищет .env: рядом с EXE, в корне проекта, в текущей папке.
+    """
+    candidates = []
+    if getattr(sys, 'frozen', False):
+        candidates.append(os.path.join(os.path.dirname(sys.executable), ".env"))
+    candidates.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+    candidates.append(".env")
+
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+        except Exception:
+            pass
+        return
+
+
+_load_env_file()
+
+# API сервер — URL деплоя на Render
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://nurbooks-api.onrender.com")
+# Ключ API сервера (NURBOOKS_API_KEY на Render). Держите в .env!
+API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
 
 APP_NAME = "NurBooks"
 APP_VERSION = "1.4.0  Beta"
@@ -64,12 +98,12 @@ SERVICE_ACCOUNT_KEY_PATH = _resolve_service_account_key()
 
 # Настройки Firebase
 class FirebaseConfig:
-    """Конфигурация Firebase"""
-    PROJECT_ID = "nurbooks-3b694"
-    API_KEY = "AIzaSyAR_4MpDYgYhhUahYWnGTJ_tS_rV1DhKPI"
-    AUTH_DOMAIN = "nurbooks-3b694.firebaseapp.com"
-    MESSAGING_SENDER_ID = "9086132352"
-    APP_ID = "1:9086132352:web:fbed7cfafa2df0d4a20665"
+    """Конфигурация Firebase. Web API-ключ держите в .env (переменная FIREBASE_API_KEY)."""
+    PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "nurbooks-3b694")
+    API_KEY = os.environ.get("FIREBASE_API_KEY", "")
+    AUTH_DOMAIN = os.environ.get("FIREBASE_AUTH_DOMAIN", "nurbooks-3b694.firebaseapp.com")
+    MESSAGING_SENDER_ID = os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "9086132352")
+    APP_ID = os.environ.get("FIREBASE_APP_ID", "1:9086132352:web:fbed7cfafa2df0d4a20665")
     SERVICE_ACCOUNT_KEY_PATH = SERVICE_ACCOUNT_KEY_PATH
 
     @classmethod
@@ -86,16 +120,17 @@ class FirebaseConfig:
     @classmethod
     def is_configured(cls):
         """Проверяет, настроен ли Firebase"""
-        return (cls.API_KEY != "AIzaSyXXXXXXXXXXXX" and
+        return (bool(cls.API_KEY) and
+                cls.API_KEY != "AIzaSyXXXXXXXXXXXX" and
                 os.path.exists(cls.SERVICE_ACCOUNT_KEY_PATH))
 
 
 # Настройки GitHub Releases для хранения PDF и обложек
 class GitHubConfig:
     """Конфигурация GitHub Releases"""
-    REPO_OWNER = "NurApps"
-    REPO_NAME = "NurBooks-Releases"
-    GITHUB_TOKEN = ""  # Personal Access Token
+    REPO_OWNER = os.environ.get("GITHUB_REPO_OWNER", "NurApps")
+    REPO_NAME = os.environ.get("GITHUB_REPO_NAME", "NurBooks-Releases")
+    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")  # держите в .env
 
     @classmethod
     def get_release_url(cls, asset_name: str) -> str:
