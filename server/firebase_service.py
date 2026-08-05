@@ -240,6 +240,64 @@ def all_wishlist(uid: str) -> list:
     return [doc.to_dict().get("bookId") for doc in docs]
 
 
+# ---- Ratings & Reviews ----
+
+def upsert_rating(uid: str, book_id: int, rating: int, review: str | None = None, nickname: str | None = None):
+    doc_ref = _firestore.collection("ratings").document(f"{book_id}_{uid}")
+    data = {
+        "bookId": book_id,
+        "userId": uid,
+        "rating": max(1, min(5, int(rating))),
+        "updatedAt": datetime.now().isoformat(),
+    }
+    if nickname:
+        data["nickname"] = nickname
+    if review is not None:
+        data["review"] = review.strip() if isinstance(review, str) else review
+    if not doc_ref.get().exists:
+        data["createdAt"] = datetime.now().isoformat()
+    doc_ref.set(data, merge=True)
+
+
+def delete_rating(uid: str, book_id: int):
+    doc = _firestore.collection("ratings").document(f"{book_id}_{uid}").get()
+    if doc.exists and doc.to_dict().get("userId") == uid:
+        doc.reference.delete()
+
+
+def book_ratings(book_id: int, uid: str = "public") -> dict:
+    """Рейтинг книги: среднее, распределение, отзывы и оценка текущего пользователя."""
+    reviews = []
+    total = 0
+    count = 0
+    distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    user_rating = None
+    docs = _firestore.collection("ratings").where("bookId", "==", book_id).stream()
+    for doc in docs:
+        d = doc.to_dict()
+        r = d.get("rating", 0)
+        total += r
+        count += 1
+        distribution[r] = distribution.get(r, 0) + 1
+        if d.get("userId") == uid:
+            user_rating = r
+        if d.get("review"):
+            reviews.append({
+                "nickname": d.get("nickname", "Читатель"),
+                "rating": r,
+                "review": d.get("review"),
+                "updatedAt": d.get("updatedAt", ""),
+            })
+    reviews.sort(key=lambda x: x.get("updatedAt", ""), reverse=True)
+    return {
+        "average": round(total / count, 2) if count else 0,
+        "count": count,
+        "distribution": {str(k): distribution.get(k, 0) for k in (1, 2, 3, 4, 5)},
+        "userRating": user_rating,
+        "reviews": reviews,
+    }
+
+
 # ---- Users ----
 
 def upsert_user(uid: str, nickname: str):

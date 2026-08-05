@@ -439,6 +439,24 @@ class FirebaseClient:
     def remove_wishlist(self, book_id: int) -> bool:
         return _delete(f"/wishlist/{book_id}")
 
+    # ---- Ratings & Reviews ----
+
+    def get_book_ratings(self, book_id: int) -> dict[str, Any]:
+        data = _get(f"/books/{book_id}/ratings")
+        return data or {"average": 0, "count": 0, "distribution": {}, "userRating": None, "reviews": []}
+
+    def rate_book(self, book_id: int, rating: int, review: str = "", nickname: str = "") -> dict[str, Any] | None:
+        payload = {"bookId": book_id, "rating": rating}
+        if review:
+            payload["review"] = review
+        if nickname:
+            payload["nickname"] = nickname
+        data = _put(f"/ratings/{book_id}", payload)
+        return data or None
+
+    def delete_rating(self, book_id: int) -> bool:
+        return _delete(f"/ratings/{book_id}")
+
     # ---- Reading History ----
 
     def get_reading_history(self, limit: int = 50) -> list[dict]:

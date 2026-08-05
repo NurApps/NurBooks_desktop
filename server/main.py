@@ -37,6 +37,7 @@ from models import (  # noqa: E402
     BookmarkCreate,
     BookUpdate,
     FavoriteCreate,
+    RatingUpsert,
     ReadingProgressSave,
     UserUpsert,
     WishlistCreate,
@@ -303,6 +304,30 @@ def create_wishlist(data: WishlistCreate, authorization: str = Header("")):
 def delete_wishlist(book_id: int, authorization: str = Header("")):
     require_firebase()
     fb.remove_wishlist(resolve_uid(authorization), book_id)
+    return {"status": "success"}
+
+
+# ============ Ratings & Reviews ============
+
+
+@app.get("/books/{book_id}/ratings")
+def get_ratings(book_id: int, authorization: str = Header("")):
+    require_firebase()
+    return fb.book_ratings(book_id, resolve_uid(authorization))
+
+
+@app.put("/ratings/{book_id}")
+def put_rating(book_id: int, data: RatingUpsert, authorization: str = Header("")):
+    require_firebase()
+    uid = resolve_uid(authorization)
+    fb.upsert_rating(uid, book_id, data.rating, data.review, data.nickname)
+    return fb.book_ratings(book_id, uid)
+
+
+@app.delete("/ratings/{book_id}")
+def delete_rating(book_id: int, authorization: str = Header("")):
+    require_firebase()
+    fb.delete_rating(resolve_uid(authorization), book_id)
     return {"status": "success"}
 
 

@@ -287,3 +287,41 @@ def test_wishlist_delete(monkeypatch):
     r = client.delete("/wishlist/5", headers={"Authorization": "Bearer t"})
     assert r.status_code == 200
     assert captured == {"uid": "user-9", "bid": 5}
+
+
+# ============ Ratings ============
+
+
+def test_ratings_get(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "book_ratings", lambda bid, uid: {"average": 4.5, "count": 2, "userRating": 5})
+    r = client.get("/books/3/ratings", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json()["average"] == 4.5
+    assert r.json()["userRating"] == 5
+
+
+def test_ratings_put(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    captured = {}
+    monkeypatch.setattr(
+        fb, "upsert_rating",
+        lambda uid, bid, rating, review=None, nickname=None: captured.update(uid=uid, bid=bid, rating=rating, review=review, nickname=nickname),
+    )
+    monkeypatch.setattr(fb, "book_ratings", lambda bid, uid: {"average": 4, "count": 1})
+    r = client.put("/ratings/3", json={"bookId": 3, "rating": 4, "review": "Хорошая книга", "nickname": "ali"}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert captured["rating"] == 4
+    assert captured["review"] == "Хорошая книга"
+
+
+def test_ratings_delete(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    captured = {}
+    monkeypatch.setattr(fb, "delete_rating", lambda uid, bid: captured.update(uid=uid, bid=bid))
+    r = client.delete("/ratings/3", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert captured == {"uid": "user-1", "bid": 3}

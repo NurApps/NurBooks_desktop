@@ -59,6 +59,13 @@ class WishlistCreate(BaseModel):
     bookId: int
 
 
+class RatingUpsert(BaseModel):
+    bookId: int
+    rating: int
+    review: str | None = None
+    nickname: str | None = None
+
+
 class AnalyticsEventCreate(BaseModel):
     eventType: str
     bookId: int

@@ -36,6 +36,15 @@ class BookViewPage:
         self.wishlist_manager = wishlist
         self.wishlist_books = self.wishlist_manager.get_wishlist()
 
+        # Оценки и отзывы
+        self.ratings_data = {"average": 0, "count": 0, "distribution": {}, "userRating": None, "reviews": []}
+        self.ratings_container = ft.Container(
+            content=ft.Row([ft.ProgressRing(width=18, height=18), ft.Text("Загрузка оценок...", size=13)],
+                           spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=10,
+        )
+        self._load_ratings_async()
+
         # 🔥 NEW: увеличиваем просмотры сразу при открытии страницы
         self._record_book_view()
 
@@ -344,6 +353,9 @@ class BookViewPage:
                                     ], spacing=10),
                                     padding=ft.padding.only(top=20)
                                 ),
+
+                                # Оценки и отзывы
+                                self.ratings_container,
 
                                 # Кнопки основных действий
                                 ft.Container(
@@ -832,6 +844,185 @@ class BookViewPage:
             )
             self.page.snack_bar.open = True
             self.page.update()
+
+    def _load_ratings_async(self):
+        """Фоново загружает оценки и отзывы книги."""
+        def _load():
+            try:
+                from src.core.firebase_client import firebase_client
+                if not firebase_client.is_initialized():
+                    self.ratings_container.content = ft.Text("Оценки недоступны офлайн", size=13, color=ft.colors.GREY)
+                    self.page.update()
+                    return
+                data = firebase_client.get_book_ratings(self.book.id)
+                self.ratings_data = data
+                self.ratings_container.content = self._create_ratings_content()
+                self.page.update()
+            except Exception as e:
+                logger.error(f"Ошибка загрузки оценок: {e}", exc_info=True)
+                self.ratings_container.content = ft.Text("Не удалось загрузить оценки", size=13, color=ft.colors.GREY)
+                self.page.update()
+        import threading
+        threading.Thread(target=_load, daemon=True).start()
+
+    def _create_ratings_content(self) -> ft.Control:
+        """Создает содержимое блока оценок и отзывов."""
+        data = self.ratings_data
+        avg = data.get("average", 0) or 0
+        count = data.get("count", 0) or 0
+        user_rating = data.get("userRating")
+        reviews = data.get("reviews", []) or []
+
+        stars = ft.Row([
+            self._make_star(i)
+            for i in range(1, 6)
+        ], spacing=2)
+
+        header = ft.Row([
+            ft.Text("Оценки", size=20, weight=ft.FontWeight.BOLD),
+            ft.Container(expand=True),
+            ft.Text(f"★ {avg:.1f}" if avg else "нет оценок", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.AMBER),
+            ft.Text(f"({count})", size=14, color=ft.colors.GREY),
+        ], vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+        review_items = []
+        for rv in reviews[:20]:
+            review_items.append(ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Icon(ft.icons.ACCOUNT_CIRCLE, size=20, color=ft.colors.PRIMARY),
+                        ft.Text(rv.get("nickname", "Читатель"), weight=ft.FontWeight.BOLD, size=13),
+                        ft.Container(expand=True),
+                        ft.Text("★" * int(rv.get("rating", 0)), size=13, color=ft.colors.AMBER),
+                    ], spacing=6),
+                    ft.Text(rv.get("review", ""), size=13),
+                ], spacing=4),
+                padding=10,
+                bgcolor=ft.colors.SURFACE_VARIANT,
+                border_radius=8,
+                margin=ft.margin.only(bottom=6),
+            ))
+
+        review_list = ft.Column(review_items, spacing=0) if review_items else ft.Text(
+            "Отзывов пока нет. Станьте первым!", size=13, color=ft.colors.GREY
+        )
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Divider(),
+                header,
+                ft.Row([
+                    stars,
+                    ft.Container(expand=True),
+                    ft.TextButton(
+                        "Написать отзыв" if user_rating is None else "Изменить оценку",
+                        icon=ft.icons.EDIT,
+                        on_click=self._show_rate_dialog,
+                    ),
+                    ft.TextButton(
+                        "Удалить оценку",
+                        icon=ft.icons.DELETE,
+                        on_click=self._on_delete_rating,
+                        visible=user_rating is not None,
+                    ),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Divider(),
+                ft.Text("Отзывы читателей", size=15, weight=ft.FontWeight.BOLD),
+                review_list,
+            ], spacing=10),
+            padding=ft.padding.only(top=10),
+        )
+
+    def _make_star(self, value: int) -> ft.IconButton:
+        """Создает звезду для отображения средней оценки (неинтерактивная)."""
+        data = self.ratings_data
+        avg = data.get("average", 0) or 0
+        filled = value <= round(avg)
+        return ft.IconButton(
+            icon=ft.icons.STAR if filled else ft.icons.STAR_BORDER,
+            icon_color=ft.colors.AMBER if filled else ft.colors.OUTLINE,
+            icon_size=22,
+            disabled=True,
+        )
+
+    def _show_rate_dialog(self, e=None):
+        """Диалог оценки и отзыва."""
+        self._rate_value = self.ratings_data.get("userRating") or 0
+        self._rate_stars = ft.Row([
+            self._make_rate_star(i) for i in range(1, 6)
+        ], spacing=4)
+        self._rate_review_field = ft.TextField(
+            label="Ваш отзыв (необязательно)",
+            multiline=True,
+            min_lines=2,
+            max_lines=5,
+            value="",
+        )
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"Оценить книгу: {self.book.title[:40]}"),
+            content=ft.Column([
+                self._rate_stars,
+                self._rate_review_field,
+            ], tight=True, spacing=12, width=360),
+            actions=[
+                ft.TextButton("Отмена", on_click=lambda _: self.page.close(dlg)),
+                ft.ElevatedButton("Сохранить", icon=ft.icons.SAVE, on_click=lambda _: self._submit_rating(dlg)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self._rate_dlg = dlg
+        self.page.open(dlg)
+        self.page.update()
+
+    def _make_rate_star(self, value: int) -> ft.IconButton:
+        filled = value <= self._rate_value
+        return ft.IconButton(
+            icon=ft.icons.STAR if filled else ft.icons.STAR_BORDER,
+            icon_color=ft.colors.AMBER if filled else ft.colors.OUTLINE,
+            icon_size=30,
+            on_click=lambda e, v=value: self._set_rate_value(v),
+        )
+
+    def _set_rate_value(self, value: int):
+        self._rate_value = value
+        for i, star in enumerate(self._rate_stars.controls, start=1):
+            star.icon = ft.icons.STAR if i <= value else ft.icons.STAR_BORDER
+            star.icon_color = ft.colors.AMBER if i <= value else ft.colors.OUTLINE
+        self.page.update()
+
+    def _submit_rating(self, dlg):
+        if self._rate_value < 1:
+            return
+        review = (self._rate_review_field.value or "").strip()
+
+        def _do():
+            try:
+                from src.core.firebase_client import auth_session, firebase_client
+                nickname = auth_session.nickname or ""
+                data = firebase_client.rate_book(self.book.id, self._rate_value, review, nickname)
+                if data:
+                    self.ratings_data = data
+                self.page.close(dlg)
+                self.ratings_container.content = self._create_ratings_content()
+                self.page.update()
+            except Exception as ex:
+                logger.error(f"Ошибка сохранения оценки: {ex}", exc_info=True)
+        import threading
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _on_delete_rating(self, e=None):
+        def _do():
+            try:
+                from src.core.firebase_client import firebase_client
+                firebase_client.delete_rating(self.book.id)
+                data = firebase_client.get_book_ratings(self.book.id)
+                self.ratings_data = data
+                self.ratings_container.content = self._create_ratings_content()
+                self.page.update()
+            except Exception as ex:
+                logger.error(f"Ошибка удаления оценки: {ex}", exc_info=True)
+        import threading
+        threading.Thread(target=_do, daemon=True).start()
 
     def build(self) -> ft.Control:
         """Возвращает содержимое страницы"""
