@@ -331,6 +331,15 @@ def delete_rating(book_id: int, authorization: str = Header("")):
     return {"status": "success"}
 
 
+# ============ Reading statistics ============
+
+
+@app.get("/analytics/stats")
+def get_reading_stats(days: int = Query(30, ge=1, le=90), authorization: str = Header("")):
+    require_firebase()
+    return fb.reading_stats(resolve_uid(authorization), days)
+
+
 # ============ Reading Progress ============
 
 

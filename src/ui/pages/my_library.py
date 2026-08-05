@@ -382,6 +382,10 @@ class MyLibraryPage:
                     text="История чтения",
                     content=self._create_reading_history_tab()
                 ),
+                ft.Tab(
+                    text="Статистика",
+                    content=self._create_statistics_tab()
+                ),
             ],
             expand=1,
         )
@@ -628,6 +632,105 @@ class MyLibraryPage:
                 message="Книга убрана из списка «Хочу прочитать»",
                 type="info"
             )
+
+    # ============ Статистика чтения ============
+
+    def _create_statistics_tab(self) -> ft.Control:
+        """Вкладка с личной статистикой чтения."""
+        self._stats_container = ft.Container(
+            content=ft.Row([ft.ProgressRing(width=24, height=24), ft.Text("Загрузка статистики...", size=14, color=ft.colors.GREY)],
+                           spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            alignment=ft.alignment.center,
+            expand=True,
+        )
+        threading.Thread(target=self._load_statistics, daemon=True).start()
+        return self._stats_container
+
+    def _load_statistics(self):
+        try:
+            from src.core.firebase_client import firebase_client
+            if not firebase_client.is_initialized():
+                self._stats_container.content = ft.Text("Статистика доступна при подключении к серверу", size=14, color=ft.colors.GREY)
+                self.page.update()
+                return
+            data = firebase_client.get_reading_stats(days=30)
+            self._stats_container.content = self._build_statistics_content(data)
+            self.page.update()
+        except Exception as e:
+            self._stats_container.content = ft.Text(f"Не удалось загрузить статистику: {e}", size=14, color=ft.colors.GREY)
+            self.page.update()
+
+    def _build_statistics_content(self, data: dict) -> ft.Control:
+        days = data.get("days", []) or []
+        total_pages = data.get("totalPages", 0)
+        total_minutes = data.get("totalMinutes", 0)
+        total_sessions = data.get("totalSessions", 0)
+        books_read = data.get("booksRead", 0)
+
+        def fmt_min(m: int) -> str:
+            if m < 60:
+                return f"{m} мин"
+            return f"{m // 60} ч {m % 60} мин"
+
+        # Последние 7 дней с активностью для графика
+        active = [d for d in days if d.get("minutes", 0) > 0 or d.get("pages", 0) > 0]
+        chart_days = active[-7:] or days[-7:]
+
+        summary = ft.Row([
+            self._stat_card("Страниц", str(total_pages), ft.icons.MENU_BOOK),
+            self._stat_card("Время", fmt_min(total_minutes), ft.icons.TIMER),
+            self._stat_card("Сессий", str(total_sessions), ft.icons.BOLT),
+            self._stat_card("Книг", str(books_read), ft.icons.COLLECTIONS_BOOKMARK),
+        ], spacing=12)
+
+        # Полосы по дням
+        max_min = max((d.get("minutes", 0) for d in chart_days), default=0) or 1
+        bars = []
+        for d in chart_days:
+            m = d.get("minutes", 0)
+            w = max(2, int(240 * (m / max_min)))
+            bars.append(ft.Row([
+                ft.Text(d.get("date", ""), size=11, width=70, color=ft.colors.GREY),
+                ft.Container(
+                    width=w, height=12, bgcolor=ft.colors.PRIMARY,
+                    border_radius=ft.border_radius.all(4),
+                ),
+                ft.Text(f"{m} мин", size=11, color=ft.colors.GREY_700),
+            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+
+        chart = ft.Container(
+            content=ft.Column([
+                ft.Text("Чтение по дням", size=15, weight=ft.FontWeight.BOLD),
+                ft.Divider(height=8),
+                *bars,
+            ], spacing=6),
+            padding=16,
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            border_radius=10,
+        )
+
+        return ft.Container(
+            content=ft.Column([
+                summary,
+                ft.Container(height=10),
+                chart,
+            ], scroll=ft.ScrollMode.AUTO),
+            padding=16,
+            expand=True,
+        )
+
+    def _stat_card(self, label: str, value: str, icon) -> ft.Control:
+        return ft.Container(
+            content=ft.Column([
+                ft.Icon(icon, color=ft.colors.PRIMARY, size=26),
+                ft.Text(value, size=20, weight=ft.FontWeight.BOLD),
+                ft.Text(label, size=12, color=ft.colors.GREY),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
+            padding=ft.padding.symmetric(horizontal=10, vertical=14),
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            border_radius=10,
+            expand=True,
+        )
 
     def _create_bookmarks_tab(self) -> ft.Control:
         """Создает вкладку с закладками"""

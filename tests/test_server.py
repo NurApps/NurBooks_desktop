@@ -325,3 +325,15 @@ def test_ratings_delete(monkeypatch):
     r = client.delete("/ratings/3", headers={"Authorization": "Bearer t"})
     assert r.status_code == 200
     assert captured == {"uid": "user-1", "bid": 3}
+
+
+# ============ Stats ============
+
+
+def test_reading_stats(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-1")
+    monkeypatch.setattr(fb, "reading_stats", lambda uid, days: {"totalPages": 100, "days": []})
+    r = client.get("/analytics/stats?days=14", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json()["totalPages"] == 100

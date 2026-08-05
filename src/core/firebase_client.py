@@ -457,6 +457,12 @@ class FirebaseClient:
     def delete_rating(self, book_id: int) -> bool:
         return _delete(f"/ratings/{book_id}")
 
+    # ---- Reading statistics ----
+
+    def get_reading_stats(self, days: int = 30) -> dict[str, Any]:
+        data = _get(f"/analytics/stats?days={days}")
+        return data or {"days": [], "totalPages": 0, "totalMinutes": 0, "totalSessions": 0, "booksRead": 0}
+
     # ---- Reading History ----
 
     def get_reading_history(self, limit: int = 50) -> list[dict]:

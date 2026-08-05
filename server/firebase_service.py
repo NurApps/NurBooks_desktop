@@ -388,3 +388,61 @@ def get_book_analytics(book_id: int) -> dict:
         elif d.get("eventType") == "download":
             downloads += 1
     return {"views": views, "downloads": downloads}
+
+
+# ---- Reading statistics (личная статистика) ----
+
+def _ts_to_date(ts: str):
+    """ISO-строка → дата (YYYY-MM-DD). Терпимо к отсутствию/порче."""
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def reading_stats(uid: str, days: int = 30) -> dict:
+    """Статистика чтения пользователя за последние N дней."""
+    from datetime import timedelta
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    per_day = {}
+    books_read = set()
+    docs = _firestore.collection("analytics_events").where("userId", "==", uid).stream()
+    for doc in docs:
+        d = doc.to_dict()
+        if d.get("eventType") != "read":
+            continue
+        ts = d.get("timestamp", "")
+        if ts < cutoff:
+            continue
+        date = _ts_to_date(ts)
+        if not date:
+            continue
+        pages = int(d.get("page", 0) or 0)
+        minutes = round(int(d.get("durationSeconds", 0) or 0) / 60)
+        day = per_day.setdefault(date, {"date": date, "pages": 0, "minutes": 0, "sessions": 0})
+        day["pages"] += pages
+        day["minutes"] += minutes
+        day["sessions"] += 1
+        if d.get("bookId"):
+            books_read.add(d.get("bookId"))
+    result = {
+        "days": sorted(per_day.values(), key=lambda x: x["date"]),
+        "totalPages": sum(x["pages"] for x in per_day.values()),
+        "totalMinutes": sum(x["minutes"] for x in per_day.values()),
+        "totalSessions": sum(x["sessions"] for x in per_day.values()),
+        "booksRead": len(books_read),
+    }
+    # Дополняем днями без чтения в интервале (чтобы график был ровным)
+    result["days"] = _fill_days(result["days"], days)
+    return result
+
+
+def _fill_days(days: list, span: int) -> list:
+    from datetime import timedelta
+    by_date = {d["date"]: d for d in days}
+    filled = []
+    today = datetime.now()
+    for i in range(span - 1, -1, -1):
+        date = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        filled.append(by_date.get(date, {"date": date, "pages": 0, "minutes": 0, "sessions": 0}))
+    return filled
