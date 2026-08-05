@@ -55,6 +55,11 @@ class MyLibraryPage:
         self.favorites_manager = favorites
         self.favorite_books = self.favorites_manager.get_favorites()
 
+        # Загрузка вишлиста «Хочу прочитать»
+        from src.core.wishlist import wishlist
+        self.wishlist_manager = wishlist
+        self.wishlist_books = self.wishlist_manager.get_wishlist()
+
         # Загрузка закладок из базы данных
         db = Database()
         self.bookmarks = db.get_all_bookmarks_with_books()
@@ -366,6 +371,10 @@ class MyLibraryPage:
                     content=self._create_favorite_tab()
                 ),
                 ft.Tab(
+                    text="Хочу прочитать",
+                    content=self._create_wishlist_tab()
+                ),
+                ft.Tab(
                     text="Мои закладки",
                     content=self._create_bookmarks_tab()
                 ),
@@ -535,6 +544,90 @@ class MyLibraryPage:
             padding=20,
             expand=True
         )
+
+    def _create_wishlist_item(self, book_id: str) -> ft.Control:
+        """Создает элемент книги из вишлиста"""
+        books = self.storage.load_books()
+        book = next((b for b in books if str(b.id) == book_id), None)
+        if not book:
+            return ft.Container()
+        return ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    content=ft.Icon(ft.icons.PLAYLIST_ADD_CHECK, color=ft.colors.PRIMARY, size=22),
+                    bgcolor=ft.colors.PRIMARY_CONTAINER,
+                    border_radius=20,
+                    width=40,
+                    height=40,
+                    alignment=ft.alignment.center,
+                ),
+                ft.Column([
+                    ft.Text(book.title, weight=ft.FontWeight.BOLD, size=14),
+                    ft.Text(f"Автор: {book.author}", size=12, color=ft.colors.ON_SURFACE_VARIANT),
+                ], expand=True, spacing=2),
+                ft.IconButton(
+                    icon=ft.icons.MENU_BOOK,
+                    tooltip="Читать",
+                    on_click=lambda e, b=book: self._open_book_at_page(b, 1),
+                ),
+                ft.IconButton(
+                    icon=ft.icons.DELETE,
+                    tooltip="Убрать из «Хочу прочитать»",
+                    on_click=lambda e, bid=book_id: self._on_delete_wishlist_click(bid),
+                ),
+            ], spacing=12),
+            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=ft.colors.SURFACE,
+            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border_radius=12,
+            margin=ft.margin.only(bottom=8)
+        )
+
+    def _create_wishlist_tab(self) -> ft.Control:
+        """Создает вкладку «Хочу прочитать»"""
+        all_books = self.storage.load_books()
+        book_items = []
+        for book_id in self.wishlist_books:
+            book = next((b for b in all_books if str(b.id) == book_id), None)
+            if book and self._matches_search(book):
+                book_items.append(self._create_wishlist_item(book_id))
+
+        if not book_items:
+            return ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.icons.PLAYLIST_ADD, size=48, color=ft.colors.GREY),
+                    ft.Text("Ничего не найдено" if self.search_query else "Список «Хочу прочитать» пуст", size=16, color=ft.colors.GREY),
+                    ft.Text("Откладывайте книги, которые хотите прочитать позже", size=12, color=ft.colors.GREY_600),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=20,
+                alignment=ft.alignment.center
+            )
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Text(f"В списке: {len(book_items)}", size=14, color=ft.colors.GREY),
+                ft.Container(
+                    content=ft.Column(book_items, scroll=ft.ScrollMode.ADAPTIVE),
+                    padding=10,
+                    expand=True
+                ),
+            ]),
+            padding=20,
+            expand=True
+        )
+
+    def _on_delete_wishlist_click(self, book_id: str):
+        """Убирает книгу из вишлиста"""
+        self.wishlist_manager.remove(book_id)
+        self.wishlist_books = self.wishlist_manager.get_wishlist()
+        self.content = self._create_content()
+        self.page.update()
+        if self.notification_manager:
+            self.notification_manager.add_notification(
+                title="Убрано из «Хочу прочитать»",
+                message="Книга убрана из списка «Хочу прочитать»",
+                type="info"
+            )
 
     def _create_bookmarks_tab(self) -> ft.Control:
         """Создает вкладку с закладками"""

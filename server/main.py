@@ -39,6 +39,7 @@ from models import (  # noqa: E402
     FavoriteCreate,
     ReadingProgressSave,
     UserUpsert,
+    WishlistCreate,
 )
 from rate_limit import RateLimitMiddleware  # noqa: E402
 
@@ -279,6 +280,29 @@ def create_favorite(data: FavoriteCreate, authorization: str = Header("")):
 def delete_favorite(book_id: int, authorization: str = Header("")):
     require_firebase()
     fb.remove_favorite(resolve_uid(authorization), book_id)
+    return {"status": "success"}
+
+
+# ============ Wishlist (Хочу прочитать) ============
+
+
+@app.get("/wishlist")
+def get_wishlist(authorization: str = Header("")):
+    require_firebase()
+    return {"wishlist": fb.all_wishlist(resolve_uid(authorization))}
+
+
+@app.post("/wishlist")
+def create_wishlist(data: WishlistCreate, authorization: str = Header("")):
+    require_firebase()
+    fb.add_wishlist(resolve_uid(authorization), data.bookId)
+    return {"status": "success"}
+
+
+@app.delete("/wishlist/{book_id}")
+def delete_wishlist(book_id: int, authorization: str = Header("")):
+    require_firebase()
+    fb.remove_wishlist(resolve_uid(authorization), book_id)
     return {"status": "success"}
 
 

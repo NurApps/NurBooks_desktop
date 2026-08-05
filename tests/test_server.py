@@ -255,3 +255,35 @@ def test_register_user_requires_auth(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     r = client.post("/auth/register", json={"nickname": "Алиса"})
     assert r.status_code == 401
+
+
+# ============ Wishlist ============
+
+
+def test_wishlist_get_scoped_by_user(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-9")
+    monkeypatch.setattr(fb, "all_wishlist", lambda uid: [5, 6])
+    r = client.get("/wishlist", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json() == {"wishlist": [5, 6]}
+
+
+def test_wishlist_add_scoped_by_user(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-9")
+    captured = {}
+    monkeypatch.setattr(fb, "add_wishlist", lambda uid, bid: captured.update(uid=uid, bid=bid))
+    r = client.post("/wishlist", json={"bookId": 5}, headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert captured == {"uid": "user-9", "bid": 5}
+
+
+def test_wishlist_delete(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(fb, "verify_token", lambda t: "user-9")
+    captured = {}
+    monkeypatch.setattr(fb, "remove_wishlist", lambda uid, bid: captured.update(uid=uid, bid=bid))
+    r = client.delete("/wishlist/5", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert captured == {"uid": "user-9", "bid": 5}

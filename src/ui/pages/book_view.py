@@ -31,11 +31,17 @@ class BookViewPage:
         self.favorites_manager = favorites
         self.favorite_books = self.favorites_manager.get_favorites()
 
+        # Загружаем вишлист «Хочу прочитать»
+        from src.core.wishlist import wishlist
+        self.wishlist_manager = wishlist
+        self.wishlist_books = self.wishlist_manager.get_wishlist()
+
         # 🔥 NEW: увеличиваем просмотры сразу при открытии страницы
         self._record_book_view()
 
         # Создаем кнопку избранного с правильным состоянием
         self.favorite_button = self._create_favorite_button()
+        self.wishlist_button = self._create_wishlist_button()
 
         # Проверяем скачана ли книга
         is_downloaded, _ = self._find_downloaded_file()
@@ -169,6 +175,30 @@ class BookViewPage:
         self.favorite_button.tooltip = "В избранное" if not is_favorite else "Удалить из избранного"
         self.page.update()
 
+    def _is_book_in_wishlist(self) -> bool:
+        """Проверяет, есть ли книга в вишлисте"""
+        return self.wishlist_manager.is_in_wishlist(str(self.book.id))
+
+    def _create_wishlist_button(self) -> ft.IconButton:
+        """Создает кнопку «Хочу прочитать» с правильным состоянием"""
+        in_wishlist = self._is_book_in_wishlist()
+        return ft.IconButton(
+            icon=ft.icons.PLAYLIST_ADD_CHECK if in_wishlist else ft.icons.PLAYLIST_ADD,
+            icon_color=ft.colors.PRIMARY if in_wishlist else None,
+            tooltip="Удалить из «Хочу прочитать»" if in_wishlist else "Хочу прочитать",
+            on_click=self._on_wishlist_click,
+            height=40,
+            width=40
+        )
+
+    def _toggle_wishlist_button(self):
+        """Переключает состояние кнопки вишлиста"""
+        in_wishlist = self._is_book_in_wishlist()
+        self.wishlist_button.icon = ft.icons.PLAYLIST_ADD_CHECK if in_wishlist else ft.icons.PLAYLIST_ADD
+        self.wishlist_button.icon_color = ft.colors.PRIMARY if in_wishlist else None
+        self.wishlist_button.tooltip = "Удалить из «Хочу прочитать»" if in_wishlist else "Хочу прочитать"
+        self.page.update()
+
     def _create_content(self) -> ft.Control:
         """Создает содержимое страницы книги"""
         # Проверяем, скачана ли книга (уже проверено в __init__)
@@ -221,6 +251,7 @@ class BookViewPage:
                                         height=40
                                     ),
                                     self.favorite_button,
+                                    self.wishlist_button,
                                 ]),
                             ], spacing=10),
                             width=350,
@@ -774,6 +805,29 @@ class BookViewPage:
         except Exception as e:
             self.page.snack_bar = ft.SnackBar(
                 content=ft.Text(f"Ошибка при работе с избранным: {str(e)}"),
+                bgcolor=ft.colors.ERROR
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    def _on_wishlist_click(self, e):
+        """Переключает статус «Хочу прочитать» для книги"""
+        try:
+            book_id = str(self.book.id)
+            if self.wishlist_manager.is_in_wishlist(book_id):
+                self.wishlist_manager.remove(book_id)
+                message = f"Книга '{self.book.title}' убрана из «Хочу прочитать»"
+            else:
+                self.wishlist_manager.add(book_id)
+                message = f"Книга '{self.book.title}' добавлена в «Хочу прочитать»"
+            self.wishlist_books = self.wishlist_manager.get_wishlist()
+            self._toggle_wishlist_button()
+            self.page.snack_bar = ft.SnackBar(content=ft.Text(message), action="OK")
+            self.page.snack_bar.open = True
+            self.page.update()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(f"Ошибка при работе с вишлистом: {str(ex)}"),
                 bgcolor=ft.colors.ERROR
             )
             self.page.snack_bar.open = True

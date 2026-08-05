@@ -55,6 +55,10 @@ class FavoriteCreate(BaseModel):
     bookId: int
 
 
+class WishlistCreate(BaseModel):
+    bookId: int
+
+
 class AnalyticsEventCreate(BaseModel):
     eventType: str
     bookId: int

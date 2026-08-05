@@ -219,6 +219,27 @@ def all_favorites(uid: str) -> list:
     return [doc.to_dict().get("bookId") for doc in docs]
 
 
+# ---- Wishlist ----
+
+def add_wishlist(uid: str, book_id: int):
+    _firestore.collection("wishlist").document(f"{uid}_{book_id}").set({
+        "bookId": book_id,
+        "userId": uid,
+        "timestamp": datetime.now().isoformat(),
+    })
+
+
+def remove_wishlist(uid: str, book_id: int):
+    doc = _firestore.collection("wishlist").document(f"{uid}_{book_id}").get()
+    if doc.exists and doc.to_dict().get("userId") == uid:
+        doc.reference.delete()
+
+
+def all_wishlist(uid: str) -> list:
+    docs = _firestore.collection("wishlist").where("userId", "==", uid).order_by("timestamp").stream()
+    return [doc.to_dict().get("bookId") for doc in docs]
+
+
 # ---- Users ----
 
 def upsert_user(uid: str, nickname: str):

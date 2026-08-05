@@ -424,6 +424,21 @@ class FirebaseClient:
     def remove_favorite(self, book_id: int) -> bool:
         return _delete(f"/favorites/{book_id}")
 
+    # ---- Wishlist (Хочу прочитать) ----
+
+    def get_wishlist(self) -> list[str]:
+        data = _get("/wishlist")
+        if data and data.get("wishlist"):
+            return [str(w) for w in data["wishlist"]]
+        return []
+
+    def add_wishlist(self, book_id: int) -> bool:
+        result = _post("/wishlist", {"bookId": book_id})
+        return result is not None
+
+    def remove_wishlist(self, book_id: int) -> bool:
+        return _delete(f"/wishlist/{book_id}")
+
     # ---- Reading History ----
 
     def get_reading_history(self, limit: int = 50) -> list[dict]:
