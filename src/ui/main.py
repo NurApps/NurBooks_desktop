@@ -13,6 +13,7 @@ from src.core.firebase_client import firebase_client
 from src.core.models import Book
 from src.core.notifications import NotificationManager
 from src.core.storage import Storage
+from src.ui.components.account_widget import AccountWidget
 from src.ui.components.cart_widget import CartWidget
 from src.ui.components.notifications_panel import NotificationsPanel
 from src.ui.pages.about_page import AboutPage
@@ -71,6 +72,13 @@ class NurBooksApp:
             on_close=self._close_cart
         )
         self.cart_visible = False
+
+        # Виджет аккаунта в верхней панели
+        self.account_widget = AccountWidget(
+            page=self.page,
+            notification_manager=self.notification_manager,
+            on_change=self._on_account_changed,
+        )
 
         # Создание навигации
         self.nav_rail = self._create_navigation_rail()
@@ -282,6 +290,9 @@ class NurBooksApp:
                             key="cart_badge"
                         )
                     ]),
+
+                    # Кнопка аккаунта (вход/выход/регистрация)
+                    self.account_widget.build(),
 
                     # Кнопка темы
                     ft.IconButton(
@@ -525,6 +536,20 @@ class NurBooksApp:
             self.settings.theme = "light"
 
         self.storage.save_settings(self.settings)
+        self.page.update()
+
+    def _on_account_changed(self):
+        """Обновляет интерфейс после входа/выхода из аккаунта."""
+        try:
+            from src.core.favorites import favorites
+            favorites.load()
+        except Exception:
+            pass
+        try:
+            from src.core.wishlist import wishlist
+            wishlist.load()
+        except Exception:
+            pass
         self.page.update()
 
     def _clear_all_notifications(self, e=None):
