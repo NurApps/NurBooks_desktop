@@ -28,7 +28,7 @@ def _load_env_file():
 _load_env_file()
 
 import firebase_service as fb  # noqa: E402
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from models import (  # noqa: E402
     AnalyticsEventCreate,
@@ -58,11 +58,17 @@ logging.getLogger("uvicorn").handlers.clear()  # noqa: E402
 logging.getLogger("uvicorn.access").handlers.clear()  # noqa: E402
 
 
+_API_KEY_EXEMPT_PATHS = {"/", "/health"}
+
+
 def require_api_key(
+    request: Request,
     api_key: str = Query(""),
     x_api_key: str = Header(""),
 ) -> None:
     """Проверяет API-ключ: заголовок X-API-Key или query-параметр api_key (legacy)."""
+    if request.url.path in _API_KEY_EXEMPT_PATHS:
+        return
     key = (x_api_key or api_key).strip()
     if API_KEY and key != API_KEY:
         raise HTTPException(403, "Invalid API key")
