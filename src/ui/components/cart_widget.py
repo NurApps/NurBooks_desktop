@@ -28,7 +28,8 @@ class CartWidget:
             on_click=self._on_clear_cart
         )
 
-        self.content = self._create_content()
+        self.container = self._create_content()
+        self.content = self.container
 
     def add_book(self, book: Book):
         """Добавляет книгу в корзину"""
@@ -219,6 +220,13 @@ class CartWidget:
     def build(self) -> ft.Control:
         """Возвращает виджет корзины"""
         return self.content
+
+    def set_mobile(self, mobile: bool):
+        """Адаптирует корзину под мобильный экран (полная ширина)."""
+        if hasattr(self, 'container'):
+            self.container.width = None if mobile else 350
+            self.container.height = None if mobile else 500
+            self.container.border_radius = 0 if mobile else 10
 
     def show(self):
         """Показывает корзину"""

@@ -95,12 +95,15 @@ def clear_books():
 def search_books(query: str) -> list:
     results = []
     seen = set()
-    for doc in _firestore.collection("books").where("title", ">=", query).where("title", "<=", query + "z").stream():
+    # \uf8ff — самый "старший" символ Unicode: префиксный поиск работает и для кириллицы
+    # (query + "z" не покрывает буквы, идущие после 'z' в Unicode).
+    upper = query + "\uf8ff"
+    for doc in _firestore.collection("books").where("title", ">=", query).where("title", "<=", upper).stream():
         d = doc.to_dict()
         if d["id"] not in seen:
             results.append(d)
             seen.add(d["id"])
-    for doc in _firestore.collection("books").where("author", ">=", query).where("author", "<=", query + "z").stream():
+    for doc in _firestore.collection("books").where("author", ">=", query).where("author", "<=", upper).stream():
         d = doc.to_dict()
         if d["id"] not in seen:
             results.append(d)
@@ -513,7 +516,7 @@ def create_library(uid: str, title: str, description: str, visibility: str, book
         "updatedAt": datetime.now().isoformat(),
     }
     doc_ref.set(lib)
-    return _library_to_dict(doc_ref)
+    return _library_to_dict(doc_ref.get())
 
 
 def _owner_nickname(uid: str) -> str:

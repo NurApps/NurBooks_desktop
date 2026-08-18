@@ -44,6 +44,13 @@ class AccountWidget:
         """Возвращает кнопку-аватар с меню аккаунта."""
         return self._build_button()
 
+    def set_mobile(self, mobile: bool):
+        """На мобильном показывает только аватар без подписи."""
+        self._mobile = mobile
+        if hasattr(self, "_button"):
+            self._button = self._build_button()
+        return self._button
+
     def refresh(self):
         """Перестраивает кнопку под текущего пользователя."""
         self._button = self._build_button()
@@ -91,6 +98,8 @@ class AccountWidget:
                 ),
             ]
 
+        self._mobile = getattr(self, "_mobile", False)
+
         return ft.PopupMenuButton(
             content=ft.Row([
                 avatar,
@@ -99,6 +108,7 @@ class AccountWidget:
                     size=13,
                     weight=ft.FontWeight.BOLD if user else ft.FontWeight.NORMAL,
                     color=ft.colors.PRIMARY if user else ft.colors.ON_SURFACE_VARIANT,
+                    visible=not self._mobile,
                 ),
             ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             items=menu_items,

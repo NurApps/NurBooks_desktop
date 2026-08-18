@@ -8,10 +8,11 @@ from src.ui.components.search_bar import SearchBar
 
 
 class CatalogPage:
-    def __init__(self, page: ft.Page, books: list[Book], on_book_click=None, on_continue_reading=None, reading_progress: dict | None = None):
+    def __init__(self, page: ft.Page, books: list[Book], on_book_click=None, on_continue_reading=None, reading_progress: dict | None = None, on_refresh=None):
         self.page = page
         self.on_book_click = on_book_click
         self.on_continue_reading = on_continue_reading
+        self.on_refresh = on_refresh
         self.books: list[Book] = books
         self.filtered_books: list[Book] = books.copy()
         self._search_timer = None
@@ -21,11 +22,51 @@ class CatalogPage:
         self.search_bar = SearchBar(on_search=None)
         self.search_bar.search_field.on_change = self._on_search_change
         self.search_bar.search_field.hint_text = "Поиск по названию или автору..."
+        self.search_bar.filter_button.on_click = self._toggle_filters
+        self._filters_visible = not self._is_mobile()
 
         self._setup_filters()
         self.book_grid = None
         self.content = self._create_content()
         self._rebuild_grid()
+
+    def _is_mobile(self) -> bool:
+        """Определяет, мобильный ли экран"""
+        width = self.page.width
+        if width is None:
+            window = getattr(self.page, "window", None)
+            width = window.width if window is not None else 1200
+        return width < 700
+
+    def _toggle_filters(self, e=None):
+        """Показывает/скрывает панель фильтров (для мобильных)"""
+        self._filters_visible = not self._filters_visible
+        if hasattr(self, 'filters_container'):
+            self.filters_container.visible = self._filters_visible
+            self.filters_divider.visible = self._filters_visible
+        self.page.update()
+
+    def _on_refresh_click(self, e=None):
+        """Перезагружает каталог с сервера."""
+        self.refresh_button.icon = ft.icons.REFRESH
+        self.refresh_button.rotate = ft.Rotate(0, alignment=ft.alignment.center)
+        self.refresh_button.icon_color = ft.colors.PRIMARY
+        self.page.update()
+
+        if self.on_refresh:
+            self.on_refresh()
+        else:
+            try:
+                from src.core.storage import Storage
+                books = Storage().load_books(force=True)
+                if books:
+                    self.books = books
+                    self.filtered_books = books.copy()
+                    self._setup_filters()
+                    self._rebuild_grid()
+                    self.page.update()
+            except Exception:
+                pass
 
     def _setup_filters(self):
         if not self.books:
@@ -186,6 +227,21 @@ class CatalogPage:
 
         self.grid_container = ft.Container(expand=True)
 
+        self.refresh_button = ft.IconButton(
+            icon=ft.icons.REFRESH,
+            tooltip="Обновить каталог",
+            on_click=self._on_refresh_click,
+            icon_color=ft.colors.PRIMARY
+        )
+
+        self.filters_container = ft.Container(
+            self.filters_panel.build(),
+            width=None if self._is_mobile() else 260,
+            visible=self._filters_visible
+        )
+        self.filters_divider = ft.VerticalDivider(width=1)
+        self.filters_divider.visible = self._filters_visible
+
         return ft.Container(
             content=ft.Column([
                 ft.Container(
@@ -194,6 +250,7 @@ class CatalogPage:
                             ft.Text("Каталог книг", size=28, weight=ft.FontWeight.BOLD),
                             ft.Container(expand=True),
                             self.stats_text,
+                            self.refresh_button,
                         ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         self.search_bar.search_field,
                     ], spacing=10),
@@ -201,8 +258,8 @@ class CatalogPage:
                 ),
                 self._create_continue_reading_section(),
                 ft.Row([
-                    ft.Container(self.filters_panel.build(), width=260),
-                    ft.VerticalDivider(width=1),
+                    self.filters_container,
+                    self.filters_divider,
                     self.grid_container,
                 ], expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.START),
             ]),

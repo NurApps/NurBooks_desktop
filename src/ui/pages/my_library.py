@@ -23,6 +23,14 @@ class MyLibraryPage:
         self._search_timer = None
         self.search_query = ""
 
+    def _is_mobile(self) -> bool:
+        """Определяет, мобильный ли экран"""
+        width = self.page.width
+        if width is None:
+            window = getattr(self.page, "window", None)
+            width = window.width if window is not None else 1200
+        return width < 700
+
         self.downloaded_books: list[str] = []
         self.saved_books: list[str] = []
         self.favorite_books: list[str] = []
@@ -463,7 +471,12 @@ class MyLibraryPage:
                             margin=ft.margin.only(top=5),
                         ),
                     ]),
-                    padding=ft.padding.only(left=20, right=20, top=20, bottom=10)
+                    padding=ft.padding.only(
+                        left=12 if self._is_mobile() else 20,
+                        right=12 if self._is_mobile() else 20,
+                        top=12 if self._is_mobile() else 20,
+                        bottom=10
+                    )
                 ),
                 self._create_continue_reading_section(),
                 self._build_tabs(),

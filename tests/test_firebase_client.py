@@ -1,5 +1,6 @@
 import importlib
 import json
+import urllib.error
 from unittest.mock import patch
 
 import pytest
@@ -138,6 +139,39 @@ def test_request_attaches_bearer_token(monkeypatch, tmp_path):
 def test_get_favorites(monkeypatch):
     with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({"favorites": [1, 2]})):
         assert fc.firebase_client.get_favorites() == ["1", "2"]
+
+
+def test_request_retries_with_refreshed_session_on_401(monkeypatch, tmp_path):
+    monkeypatch.setattr(fc, "_AUTH_TOKEN_FILE", str(tmp_path / "auth.json"))
+    with patch.object(fc.urllib.request, "urlopen", return_value=_fake_response({
+        "idToken": "tok", "localId": "u1", "refreshToken": "rt-123", "expiresIn": "3600",
+    })):
+        fc.firebase_client.sign_in_anonymous()
+
+    class FakeHTTPError(urllib.error.HTTPError):
+        def __init__(self, url):
+            super().__init__(url, 401, "expired", {}, None)
+
+    tokens_sent = []
+    urlopen_calls = []
+
+    def fake_urlopen(req, timeout=10):
+        urlopen_calls.append(req.get_method())
+        if req.get_method() == "POST" and req.full_url.startswith(fc._SECURE_TOKEN_URL):
+            tokens_sent.append(json.loads(req.data.decode()))
+            return _fake_response({
+                "id_token": "new-tok", "user_id": "u1", "expires_in": "3600",
+            })
+        if len([c for c in urlopen_calls if c == "GET"]) == 1:
+            raise FakeHTTPError(req.full_url)
+        assert dict(req.headers).get("Authorization") == "Bearer new-tok"
+        return _fake_response([{"bookId": 1, "page": 5, "book": {"id": 1}}])
+
+    with patch.object(fc.urllib.request, "urlopen", side_effect=fake_urlopen):
+        result = fc._get("/analytics/history")
+    assert result == [{"bookId": 1, "page": 5, "book": {"id": 1}}]
+    assert tokens_sent == [{"grant_type": "refresh_token", "refresh_token": "rt-123"}]
+    assert fc.auth_session.token == "new-tok"
 
 
 def test_get_favorites_empty(monkeypatch):

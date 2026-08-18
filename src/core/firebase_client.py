@@ -174,63 +174,62 @@ def _url(path: str) -> str:
     return f"{API_BASE}{path}"
 
 
-def _get(path: str) -> Any | None:
+def _request(method: str, path: str, data: dict = None) -> tuple[int | None, Any | None]:
+    """Выполняет HTTP-запрос к серверу. Возвращает (status_code, body).
+
+    При 401 автоматически пробует обновить сессию через refresh_token и
+    повторяет запрос один раз.
+    """
+    for attempt in range(2):
+        headers = {"Content-Type": "application/json", **_request_headers()}
+        body = json.dumps(data).encode() if data is not None else None
+        req = urllib.request.Request(_url(path), data=body, method=method, headers=headers)
+        try:
+            resp = urllib.request.urlopen(req, timeout=10)
+            if method == "DELETE":
+                return resp.status, None
+            raw = resp.read().decode()
+            return resp.status, json.loads(raw) if raw else None
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return 404, None
+            if e.code == 401 and attempt == 0 and _try_refresh_session():
+                continue
+            logger.error(f"HTTP {e.code} {method} {path}: {e.read().decode()}")
+            return e.code, None
+        except Exception as e:
+            logger.error(f"{method} {path} error: {e}")
+            return None, None
+    return None, None
+
+
+def _try_refresh_session() -> bool:
+    """Пытается обновить сессию, если есть refresh_token."""
     try:
-        url = _url(path)
-        req = urllib.request.Request(url, headers=_request_headers())
-        resp = urllib.request.urlopen(req, timeout=10)
-        return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return None
-        logger.error(f"HTTP {e.code} GET {path}: {e.read().decode()}")
-        return None
-    except Exception as e:
-        logger.error(f"GET {path} error: {e}")
-        return None
+        from src.core.firebase_client import firebase_client
+        return firebase_client.refresh_session() is not None
+    except Exception:
+        return False
+
+
+def _get(path: str) -> Any | None:
+    status, body = _request("GET", path)
+    return body if status == 200 else None
 
 
 def _post(path: str, data: dict = None) -> Any | None:
-    try:
-        url = _url(path)
-        body = json.dumps(data).encode() if data else b"{}"
-        headers = {"Content-Type": "application/json", **_request_headers()}
-        req = urllib.request.Request(url, data=body, method="POST", headers=headers)
-        resp = urllib.request.urlopen(req, timeout=10)
-        return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        logger.error(f"HTTP {e.code} POST {path}: {e.read().decode()}")
-        return None
-    except Exception as e:
-        logger.error(f"POST {path} error: {e}")
-        return None
+    status, body = _request("POST", path, data)
+    return body if status in (200, 201) else None
 
 
 def _put(path: str, data: dict = None) -> Any | None:
-    try:
-        url = _url(path)
-        body = json.dumps(data).encode() if data else b"{}"
-        headers = {"Content-Type": "application/json", **_request_headers()}
-        req = urllib.request.Request(url, data=body, method="PUT", headers=headers)
-        resp = urllib.request.urlopen(req, timeout=10)
-        return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        logger.error(f"HTTP {e.code} PUT {path}: {e.read().decode()}")
-        return None
-    except Exception as e:
-        logger.error(f"PUT {path} error: {e}")
-        return None
+    status, body = _request("PUT", path, data)
+    return body if status in (200, 201) else None
 
 
 def _delete(path: str) -> bool:
-    try:
-        url = _url(path)
-        req = urllib.request.Request(url, method="DELETE", headers=_request_headers())
-        resp = urllib.request.urlopen(req, timeout=10)
-        return resp.status == 200
-    except Exception as e:
-        logger.error(f"DELETE {path} error: {e}")
-        return False
+    status, _ = _request("DELETE", path)
+    return status == 200
 
 
 class FirebaseClient:

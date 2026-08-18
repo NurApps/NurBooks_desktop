@@ -112,14 +112,18 @@ def require_firebase():
 def resolve_uid(authorization: str = Header("")) -> str:
     """Возвращает uid из Bearer-токена, либо 'public' для анонимных запросов.
 
-    Старые данные без userId остаются доступными под скоупом 'public'.
+    - Без токена: 'public' (анонимный доступ к общему скоупу).
+    - С невалидным/истёкшим токеном: HTTPException 401 (нельзя молча
+      деградировать сессию в общий скоуп).
+    - Старые данные без userId остаются доступными под скоупом 'public'.
     """
     token = authorization.replace("Bearer ", "").strip()
-    if token:
-        uid = fb.verify_token(token)
-        if uid:
-            return uid
-    return "public"
+    if not token:
+        return "public"
+    uid = fb.verify_token(token)
+    if uid:
+        return uid
+    raise HTTPException(401, "Invalid or expired token")
 
 
 # ============ Books ============

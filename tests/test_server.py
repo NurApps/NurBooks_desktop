@@ -134,14 +134,15 @@ def test_resolve_uid_from_valid_token(monkeypatch):
     assert captured["uid"] == "user-123"
 
 
-def test_resolve_uid_invalid_token_falls_back_to_public(monkeypatch):
+def test_resolve_uid_invalid_token_returns_401(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     monkeypatch.setattr(fb, "verify_token", lambda t: None)
     captured = {}
     monkeypatch.setattr(fb, "get_bookmarks_by_book", lambda book_id, uid: captured.setdefault("uid", uid) or [])
 
-    client.get("/bookmarks", params={"book_id": 1}, headers={"Authorization": "Bearer bad-token"})
-    assert captured["uid"] == "public"
+    r = client.get("/bookmarks", params={"book_id": 1}, headers={"Authorization": "Bearer bad-token"})
+    assert r.status_code == 401
+    assert "uid" not in captured
 
 
 def test_create_bookmark_stores_user_id(monkeypatch):

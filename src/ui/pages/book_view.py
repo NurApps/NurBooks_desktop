@@ -208,12 +208,21 @@ class BookViewPage:
         self.wishlist_button.tooltip = "Удалить из «Хочу прочитать»" if in_wishlist else "Хочу прочитать"
         self.page.update()
 
+    def _is_mobile(self) -> bool:
+        """Определяет, мобильный ли экран"""
+        width = self.page.width
+        if width is None:
+            window = getattr(self.page, "window", None)
+            width = window.width if window is not None else 1200
+        return width < 700
+
     def _create_content(self) -> ft.Control:
         """Создает содержимое страницы книги"""
         # Проверяем, скачана ли книга (уже проверено в __init__)
         # Кнопки read_button и info_button уже имеют правильное visible состояние
 
-        return ft.Container(
+        self._drag_start_x = 0
+        scrollable = ft.Container(
             content=ft.Column([
                 # Кнопка назад и заголовок
                 ft.Container(
@@ -233,43 +242,87 @@ class BookViewPage:
 
                 # Основная информация о книге
                 ft.Container(
-                    content=ft.Row([
-                        # Обложка и быстрые действия
-                        ft.Container(
-                            content=ft.Column([
-                                # Обложка
-                                ft.Container(
-                                    content=ft.Image(
-                                        src=self.book.cover if self.book.cover else "assets/logo.png",
-                                        width=300,
-                                        height=400,
-                                        fit=ft.ImageFit.COVER,
-                                        border_radius=ft.border_radius.all(10),
-                                        error_content=ft.Icon(ft.icons.BOOK, size=100)
-                                    ),
-                                    margin=ft.margin.only(bottom=20)
-                                ),
+                    content=self._build_book_info_section(),
+                    padding=ft.padding.all(12 if self._is_mobile() else 30)
+                ),
 
-                                # Быстрые кнопки под обложкой
-                                ft.Row([
-                                    ft.ElevatedButton(
-                                        "В корзину",
-                                        icon=ft.icons.ADD_SHOPPING_CART,
-                                        on_click=self._on_add_to_cart_click,
-                                        expand=True,
-                                        height=40
-                                    ),
-                                    self.favorite_button,
-                                    self.wishlist_button,
-                                ]),
-                            ], spacing=10),
-                            width=350,
-                            margin=ft.margin.only(right=30)
-                        ),
+                # Рекомендуемые книги (если есть)
+                self._create_recommendations_section(),
 
-                        # Детальная информация
-                        ft.Container(
-                            content=ft.Column([
+            ], scroll=ft.ScrollMode.AUTO),
+            expand=True
+        )
+        return ft.GestureDetector(
+            content=scrollable,
+            on_horizontal_drag_start=self._on_drag_start,
+            on_horizontal_drag_end=self._on_drag_end,
+        )
+
+    def _on_drag_start(self, e):
+        self._drag_start_x = getattr(e, "global_x", 0) or 0
+
+    def _on_drag_end(self, e):
+        end_x = getattr(e, "global_x", 0) or 0
+        if end_x is not None and getattr(self, "_drag_start_x", None) is not None:
+            delta = end_x - self._drag_start_x
+            if delta > 80 and self._drag_start_x < 60:
+                self._on_back_click(e)
+
+    def _build_book_info_section(self) -> ft.Control:
+        """Собирает блок с обложкой и детальной информацией о книге"""
+        cover = self._build_cover_section()
+        details = self._build_details_section()
+        if self._is_mobile():
+            return ft.Column([
+                cover,
+                details,
+            ], spacing=15)
+        return ft.Row([
+            cover,
+            details,
+        ])
+
+    def _build_cover_section(self) -> ft.Control:
+        """Создает блок обложки с быстрыми действиями"""
+        mobile = self._is_mobile()
+        cover_w = 200 if mobile else 300
+        cover_h = 270 if mobile else 400
+        return ft.Container(
+            content=ft.Column([
+                # Обложка
+                ft.Container(
+                    content=ft.Image(
+                        src=self.book.cover if self.book.cover else "assets/logo.png",
+                        width=cover_w,
+                        height=cover_h,
+                        fit=ft.ImageFit.COVER,
+                        border_radius=ft.border_radius.all(10),
+                        error_content=ft.Icon(ft.icons.BOOK, size=100)
+                    ),
+                    margin=ft.margin.only(bottom=20)
+                ),
+
+                # Быстрые кнопки под обложкой
+                ft.Row([
+                    ft.ElevatedButton(
+                        "В корзину",
+                        icon=ft.icons.ADD_SHOPPING_CART,
+                        on_click=self._on_add_to_cart_click,
+                        expand=True,
+                        height=40
+                    ),
+                    self.favorite_button,
+                    self.wishlist_button,
+                ]),
+            ], spacing=10),
+            width=None if mobile else 350,
+            margin=ft.margin.only(right=0 if mobile else 30)
+        )
+
+    def _build_details_section(self) -> ft.Control:
+        """Создает блок детальной информации о книге"""
+        return ft.Container(
+            content=ft.Column([
                                 # Заголовок и автор
                                 ft.Text(
 
@@ -372,7 +425,7 @@ class BookViewPage:
                                             style=ft.ButtonStyle(padding=20),
                                             expand=True
                                         ),
-                                    ], spacing=20),
+                                    ], spacing=10, wrap=self._is_mobile()),
                                     padding=ft.padding.only(top=30)
                                 ),
 
@@ -412,19 +465,7 @@ class BookViewPage:
                                 ),
                             ], spacing=15),
                             expand=True
-                        ),
-                    ]),
-                    padding=ft.padding.all(30)
-                ),
-
-                # Рекомендуемые книги (если есть)
-                self._create_recommendations_section(),
-
-            ], scroll=ft.ScrollMode.AUTO),
-            expand=True
-
-
-                )
+                        )
 
     def _on_read_click(self, e):
         """Обработчик кнопки 'Читать' - проверяет скачивание и показывает диалог выбора читалки"""
