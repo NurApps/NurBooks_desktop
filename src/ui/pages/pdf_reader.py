@@ -520,14 +520,10 @@ class PDFReaderPage:
                 self._prev_page(None)
 
     def _on_drag_start(self, e):
-        self._drag_start_x = getattr(e, "global_x", 0) or 0
+        pass
 
     def _on_drag_end(self, e):
-        end_x = getattr(e, "global_x", 0) or 0
-        if end_x is not None and self._drag_start_x is not None:
-            delta = end_x - self._drag_start_x
-            if delta > 80 and self._drag_start_x < 60:
-                self._go_back(e)
+        pass
 
     def _zoom_in(self, e):
         if self.zoom < 3.0:

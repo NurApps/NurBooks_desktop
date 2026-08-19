@@ -82,7 +82,6 @@ class NurBooksApp:
 
         # Создание навигации
         self.nav_rail = self._create_navigation_rail()
-        self.bottom_nav = self._create_bottom_navigation()
         self.notification_panel = self._create_notification_panel()
         self.top_app_bar = self._create_top_app_bar()
 
@@ -110,11 +109,6 @@ class NurBooksApp:
         self._build_catalog_page()
 
         # Создание основного макета
-        self.nav_rail_container = ft.Container(
-            content=self.nav_rail,
-            width=95,
-            bgcolor=ft.colors.SURFACE_VARIANT
-        )
         self.page.add(
             ft.Column([
                 # Верхняя панель
@@ -124,7 +118,11 @@ class NurBooksApp:
                 ft.Stack([
                     ft.Row([
                         # Навигационная панель
-                        self.nav_rail_container,
+                        ft.Container(
+                            content=self.nav_rail,
+                            width=95,
+                            bgcolor=ft.colors.SURFACE_VARIANT
+                        ),
 
                         # Основное содержимое
                         ft.Container(
@@ -139,15 +137,8 @@ class NurBooksApp:
                     # Корзина (поверх основного содержимого)
                     self.cart_container
                 ], expand=True),
-
-                # Нижняя навигация (для мобильных устройств)
-                self.bottom_nav,
             ], expand=True)
         )
-
-        # Адаптивный layout при изменении размера окна
-        self.page.on_resized = self._on_resized
-        self._apply_responsive_layout()
 
         # Автопроверка обновлений
         if getattr(self.settings, "auto_update", False):
@@ -225,21 +216,18 @@ class NurBooksApp:
             padding=ft.padding.only(left=8),
         )
 
-        self._logo_image = ft.Image(
-            src="assets/logo.ico",
-            width=40,
-            height=40,
-            fit=ft.ImageFit.CONTAIN,
-            border_radius=20,
-        )
-        self._app_name_text = ft.Text(APP_NAME, size=20, weight=ft.FontWeight.BOLD)
-
-        self.top_app_bar_container = ft.Container(
+        return ft.Container(
             content=ft.Row([
                 # Логотип и название
                 ft.Row([
-                    self._logo_image,
-                    self._app_name_text,
+                    ft.Image(
+                        src="assets/logo.ico" if self.page.theme_mode == ft.ThemeMode.LIGHT else "assets/logo.ico",
+                        width=40,
+                        height=40,
+                        fit=ft.ImageFit.CONTAIN,
+                        border_radius=20,
+                    ),
+                    ft.Text(APP_NAME, size=20, weight=ft.FontWeight.BOLD),
                     self._firebase_indicator,
                 ]),
 
@@ -325,7 +313,6 @@ class NurBooksApp:
             bgcolor=ft.colors.SURFACE_VARIANT,
             border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.OUTLINE))
         )
-        return self.top_app_bar_container
 
     def _create_navigation_rail(self) -> ft.NavigationRail:
         """Создает навигационную панель"""
@@ -374,90 +361,6 @@ class NurBooksApp:
             ],
             on_change=self._on_navigation_change
         )
-
-    def _create_bottom_navigation(self) -> ft.NavigationBar:
-        """Создает нижнюю навигацию для мобильных устройств"""
-        return ft.NavigationBar(
-            selected_index=0,
-            destinations=[
-                ft.NavigationBarDestination(
-                    icon=ft.icons.BOOK,
-                    selected_icon=ft.icons.BOOK,
-                    label="Каталог"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.icons.PERSON,
-                    selected_icon=ft.icons.PERSON,
-                    label="Авторы"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.icons.BOOKMARK,
-                    selected_icon=ft.icons.BOOKMARK,
-                    label="Моя библиотека"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.icons.RECOMMEND,
-                    selected_icon=ft.icons.RECOMMEND,
-                    label="Предложить книгу"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.icons.LIBRARY_BOOKS,
-                    selected_icon=ft.icons.LIBRARY_BOOKS,
-                    label="Библиотеки"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.icons.SETTINGS,
-                    selected_icon=ft.icons.SETTINGS,
-                    label="Настройки"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.icons.INFO,
-                    selected_icon=ft.icons.INFO,
-                    label="О приложении"
-                ),
-            ],
-            on_change=self._on_navigation_change
-        )
-
-    def _is_mobile(self) -> bool:
-        """Определяет, мобильный ли экран (ширина меньше 700px)"""
-        width = self.page.width
-        if width is None:
-            window = getattr(self.page, "window", None)
-            width = window.width if window is not None else 1200
-        return width < 700
-
-    def _apply_responsive_layout(self):
-        """Применяет адаптивный layout в зависимости от ширины экрана"""
-        mobile = self._is_mobile()
-
-        # Навигация: на мобильном — нижняя, на десктопе — боковая
-        self.nav_rail_container.visible = not mobile
-        self.bottom_nav.visible = mobile
-
-        # Верхняя панель: скрываем название и индикатор на мобильном
-        self._app_name_text.visible = not mobile
-        self._firebase_indicator.visible = not mobile
-        self._logo_image.visible = not mobile
-        self.top_app_bar_container.padding = ft.padding.symmetric(
-            horizontal=8 if mobile else 20, vertical=8 if mobile else 10
-        )
-        self.account_widget.set_mobile(mobile)
-
-        # Панель уведомлений: на мобильном — полная ширина
-        self.notification_panel_container.width = None if mobile else 350
-
-        # Корзина: на мобильном — на всю ширину снизу
-        width = self.page.width if self.page.width else 1200
-        self.cart_container.right = 0 if mobile else 20
-        self.cart_container.bottom = 0 if mobile else 20
-        self.cart_container.width = width if mobile else None
-        self.cart_widget.set_mobile(mobile)
-
-    def _on_resized(self, e):
-        """Обработчик изменения размера окна"""
-        self._apply_responsive_layout()
-        self.page.update()
 
     def _create_notification_panel(self) -> ft.Control:
         """Создает панель уведомлений"""
@@ -711,7 +614,6 @@ class NurBooksApp:
             self._show_about_page(update_ui=False)
 
         self.nav_rail.selected_index = index
-        self.bottom_nav.selected_index = index
         self.page.update()
 
     def _show_loading(self, message: str = "Загрузка..."):
@@ -756,18 +658,9 @@ class NurBooksApp:
             books=books,
             on_book_click=self._on_book_selected,
             on_continue_reading=lambda b, p: self._show_pdf_reader(b, p),
-            on_refresh=self._refresh_catalog,
         )
         self.main_content.content = cp.build()
         self.current_page = "catalog"
-
-    def _refresh_catalog(self):
-        """Принудительно перезагружает каталог с сервера."""
-        try:
-            self.storage.invalidate_books_cache()
-            self._build_catalog_page()
-        except Exception:
-            pass
 
     def _show_book_proposal_form(self, update_ui: bool = True):
         """Показывает страницу с инструкцией как предложить книгу"""
