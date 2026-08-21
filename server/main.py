@@ -1,5 +1,5 @@
 """
-NurBooks API Server — прокси между десктоп-приложением и Firebase Firestore.
+NurBooks API Server — прокси между приложением и Firebase Firestore.
 """
 import os
 
@@ -28,8 +28,9 @@ def _load_env_file():
 _load_env_file()
 
 import firebase_service as fb  # noqa: E402
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
+from fastapi import Body, FastAPI, Header, HTTPException, Query, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 from models import (  # noqa: E402
     AnalyticsEventCreate,
     AuthorCreate,
@@ -68,12 +69,28 @@ def require_api_key(
         raise HTTPException(403, "Invalid API key")
 
 
+# Технические эндпоинты, доступные без API-ключа (мониторинг, cron-job, docs).
+TECHNICAL_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
+
+
 app = FastAPI(
     title="NurBooks API",
     version=APP_VERSION,
     description="Электронная исламская библиотека от NurApps.",
-    dependencies=[Depends(require_api_key)],
 )
+
+
+@app.middleware("http")
+async def api_key_guard(request: Request, call_next):
+    """API-ключ для всех эндпоинтов, кроме технических (health-check и docs)."""
+    if API_KEY and request.url.path not in TECHNICAL_PATHS:
+        key = (
+            request.headers.get("X-API-Key", "")
+            or request.query_params.get("api_key", "")
+        ).strip()
+        if key != API_KEY:
+            return JSONResponse(status_code=403, content={"detail": "Invalid API key"})
+    return await call_next(request)
 
 # CORS: по умолчанию закрыт, разрешённые origin'ы задаются переменной окружения.
 _cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
@@ -89,7 +106,7 @@ app.add_middleware(
     RateLimitMiddleware,
     max_requests=int(os.environ.get("RATE_LIMIT_MAX", "120")),
     window_seconds=int(os.environ.get("RATE_LIMIT_WINDOW", "60")),
-    exempt_paths=["/health"],
+    exempt_paths=["/", "/health", "/docs", "/redoc", "/openapi.json"],
 )
 
 

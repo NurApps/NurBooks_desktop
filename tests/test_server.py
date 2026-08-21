@@ -84,6 +84,14 @@ def test_api_key_rejected_via_header(monkeypatch):
     assert r.status_code == 403
 
 
+def test_technical_endpoints_exempt_from_api_key(monkeypatch):
+    """Health-check и root доступны без ключа (для cron-job и мониторинга)."""
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    monkeypatch.setattr(main, "API_KEY", "secret-key")
+    assert client.get("/health").status_code == 200
+    assert client.get("/").status_code == 200
+
+
 def test_create_book_conflict(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     monkeypatch.setattr(fb, "add_book", lambda d: "id_exists")
