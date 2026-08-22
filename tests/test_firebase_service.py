@@ -419,7 +419,9 @@ def test_get_reading_history(_fake_firestore):
     history = fb.get_reading_history("u1")
     assert len(history) == 2
     assert all(h["book"]["id"] == 5 for h in history)
-    assert history[0]["eventType"] == "read"
+    assert {h["eventType"] for h in history} == {"read", "read_open"}
+    # Сортировка по времени: самое свежее событие первое
+    assert history[0]["timestamp"] >= history[1]["timestamp"]
 
 
 def test_get_book_analytics(_fake_firestore):
