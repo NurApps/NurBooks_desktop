@@ -64,6 +64,8 @@ jobs:
 
     - name: Package as nurbooks.zip
       run: |
+        New-Item -ItemType Directory -Path "dist/NurBooks" -Force
+        Copy-Item "dist/NurBooks.exe" "dist/NurBooks/"
         Compress-Archive -Path "dist/NurBooks/*" -DestinationPath "nurbooks.zip"
 
     - name: Upload app artifact

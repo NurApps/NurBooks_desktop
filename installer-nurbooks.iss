@@ -30,7 +30,7 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "dist\NurBooks\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+Source: "dist\NurBooks.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 Name: "{app}\downloads"
