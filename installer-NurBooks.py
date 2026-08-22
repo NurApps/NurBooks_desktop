@@ -31,6 +31,7 @@ class NurBooksInstaller:
         self.install_path = ctk.StringVar(value=os.path.join(os.environ['USERPROFILE'], 'NurBooks'))
         self.create_desktop_shortcut = ctk.BooleanVar(value=True)
         self.create_start_menu_shortcut = ctk.BooleanVar(value=True)
+        self.launch_after_install = ctk.BooleanVar(value=True)
 
         self.create_widgets()
 
@@ -83,6 +84,16 @@ class NurBooksInstaller:
         )
         start_menu_checkbox.pack(anchor=ctk.W, pady=5)
 
+        launch_checkbox = ctk.CTkCheckBox(
+            main_frame,
+            text="Запустить NurBooks после установки",
+            variable=self.launch_after_install,
+            border_color="#4CAF50",
+            fg_color="#4CAF50",
+            hover_color="#45a049"
+        )
+        launch_checkbox.pack(anchor=ctk.W, pady=5)
+
         button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         button_frame.pack(pady=20)
 
@@ -130,7 +141,7 @@ class NurBooksInstaller:
     def perform_installation(self):
         pythoncom.CoInitialize()
 
-        DOWNLOAD_URL = "https://github.com/salihhhh014/NurBooks/releases/latest/download/nurbooks.zip"
+        DOWNLOAD_URL = "https://github.com/NurApps/NurBooks_desktop/releases/latest/download/nurbooks.zip"
 
         selected_dest_dir = self.install_path.get()
         dest_dir = os.path.join(selected_dest_dir, "NurBooks")
@@ -213,27 +224,40 @@ class NurBooksInstaller:
 
             # 5. СОЗДАНИЕ ЯРЛЫКОВ
             exe_path = self._find_exe(dest_dir)
+            desktop = self._get_desktop_dir()
+            start_menu = os.path.join(
+                os.environ['APPDATA'],
+                'Microsoft', 'Windows', 'Start Menu', 'Programs'
+            )
 
             if exe_path:
                 if self.create_desktop_shortcut.get():
-                    desktop = os.path.join(os.environ['USERPROFILE'], 'Desktop')
                     self._make_shortcut(
                         os.path.join(desktop, 'NurBooks.lnk'),
                         exe_path
                     )
 
                 if self.create_start_menu_shortcut.get():
-                    start_menu = os.path.join(
-                        os.environ['APPDATA'],
-                        'Microsoft', 'Windows', 'Start Menu', 'Programs'
-                    )
                     os.makedirs(start_menu, exist_ok=True)
                     self._make_shortcut(
                         os.path.join(start_menu, 'NurBooks.lnk'),
                         exe_path
                     )
+
+                    # 6. ДЕИНСТАЛЯТОР + ярлык на него в меню Пуск
+                    uninstall_cmd = os.path.join(dest_dir, "uninstall.cmd")
+                    with open(uninstall_cmd, "w", encoding="cp866", errors="replace") as f:
+                        f.write(self._build_uninstall_script(dest_dir))
+                    self._make_shortcut(
+                        os.path.join(start_menu, "Uninstall NurBooks.lnk"),
+                        uninstall_cmd
+                    )
             else:
                 print("EXE файл не найден, ярлыки не созданы")
+
+            # 7. ЗАПУСК ПОСЛЕ УСТАНОВКИ
+            if self.launch_after_install.get() and exe_path:
+                self.root.after(0, lambda p=exe_path: os.startfile(p))
 
             self.root.after(0, lambda: self.status_label.configure(text="Установка завершена успешно!"))
             self.root.after(0, lambda: self.progress.set(1))
@@ -258,6 +282,37 @@ class NurBooksInstaller:
                     return os.path.join(root, file)
         return None
 
+    def _get_desktop_dir(self):
+        """Реальный путь к рабочему столу (учитывает OneDrive/перенаправление)."""
+        try:
+            shell = win32com.client.Dispatch("WScript.Shell")
+            return shell.SpecialFolders("Desktop")
+        except Exception:
+            return os.path.join(os.environ['USERPROFILE'], 'Desktop')
+
+    def _build_uninstall_script(self, dest_dir):
+        """Генерирует uninstall.cmd: удаляет папку установки и ярлыки."""
+        desktop = self._get_desktop_dir()
+        start_menu = os.path.join(
+            os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs'
+        )
+        # cp866 (OEM) — чтобы cmd корректно выполнил файл с не-ASCII путями
+        script = (
+            "@echo off\r\n"
+            "chcp 65001 >nul\r\n"
+            "echo Zakrytie NurBooks...\r\n"
+            "taskkill /f /im NurBooks.exe >nul 2>&1\r\n"
+            "timeout /t 2 /nobreak >nul\r\n"
+            f"del \"{os.path.join(desktop, 'NurBooks.lnk')}\" >nul 2>&1\r\n"
+            f"del \"{os.path.join(start_menu, 'NurBooks.lnk')}\" >nul 2>&1\r\n"
+            f"del \"%~dp0uninstall.cmd\" >nul 2>&1\r\n"
+            "cd /d \"%USERPROFILE%\"\r\n"
+            f"rd /s /q \"{dest_dir}\"\r\n"
+            "echo NurBooks udalen.\r\n"
+            "pause\r\n"
+        )
+        return script
+
     def _make_shortcut(self, shortcut_path, target_path):
         """Создание ярлыка через pywin32 (COM уже инициализирован в потоке)"""
         shell = win32com.client.Dispatch("WScript.Shell")
@@ -271,13 +326,13 @@ class NurBooksInstaller:
 
     def remove_old_shortcuts(self):
         """Удаление старых ярлыков NurBooks"""
-        user_profile = os.environ['USERPROFILE']
         appdata = os.environ.get('APPDATA', '')
+        desktop = self._get_desktop_dir()
 
         old_shortcuts = [
-            os.path.join(user_profile, 'Desktop', 'NurBooks.lnk'),
-            os.path.join(user_profile, 'Desktop', 'NurBooks 1.0.0.lnk'),
-            os.path.join(user_profile, 'Desktop', 'NurBooks-1.0.0.lnk'),
+            os.path.join(desktop, 'NurBooks.lnk'),
+            os.path.join(desktop, 'NurBooks 1.0.0.lnk'),
+            os.path.join(desktop, 'NurBooks-1.0.0.lnk'),
             os.path.join(appdata, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'NurBooks.lnk'),
             os.path.join(appdata, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'NurBooks 1.0.0.lnk'),
             os.path.join(appdata, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'NurBooks-1.0.0.lnk'),
