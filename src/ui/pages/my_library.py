@@ -403,7 +403,7 @@ class MyLibraryPage:
 
         all_books = self.storage.load_books()
         items = []
-        for book_id, page in progress_map.items():
+        for book_id, page in list(progress_map.items())[:4]:
             book = next((b for b in all_books if b.id == book_id), None)
             if not book:
                 continue
@@ -440,8 +440,10 @@ class MyLibraryPage:
                     ft.Icon(ft.icons.HISTORY, size=18, color=ft.colors.PRIMARY),
                     ft.Text("Продолжить чтение", size=16, weight=ft.FontWeight.BOLD),
                 ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                ft.Divider(height=8, color=ft.colors.OUTLINE_VARIANT),
-                ft.Column(items, spacing=0),
+                ft.Container(
+                    content=ft.Column(items, spacing=0, scroll=ft.ScrollMode.AUTO),
+                    height=180,
+                ),
             ]),
             padding=ft.padding.symmetric(horizontal=20, vertical=5),
             margin=ft.margin.only(bottom=5),

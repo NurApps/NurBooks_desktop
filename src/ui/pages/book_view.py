@@ -493,7 +493,8 @@ class BookViewPage:
             actions=[
                 ft.Column([
                     ft.ElevatedButton(
-                        "📖 Встроенная читалка",
+                        "Встроенная читалка",
+                        icon=ft.icons.MENU_BOOK,
                         on_click=lambda e: (self.page.close(dlg), self.on_read(self.book) if self.on_read else None),
                         width=250,
                         style=ft.ButtonStyle(

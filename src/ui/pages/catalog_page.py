@@ -66,13 +66,20 @@ class CatalogPage:
                     ),
                     ft.Text(book.title, size=14, weight=ft.FontWeight.BOLD,
                             color=ft.colors.ON_SURFACE,
-                            max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, text_align=ft.TextAlign.CENTER),
+                            max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
+                            text_align=ft.TextAlign.CENTER,
+                            tooltip=book.title),
                     ft.Text(book.author, size=11, color=ft.colors.ON_SURFACE_VARIANT,
                             max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, text_align=ft.TextAlign.CENTER),
                     ft.Text(f"{book.year} • {book.category}", size=10, color=ft.colors.ON_SURFACE_VARIANT,
                             max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, text_align=ft.TextAlign.CENTER),
-                    ft.Text(f"👁 {getattr(book, 'view_count', 0)}  ⬇ {getattr(book, 'download_count', 0)}",
-                            size=9, color=ft.colors.OUTLINE, text_align=ft.TextAlign.CENTER),
+                    ft.Row([
+                        ft.Icon(ft.icons.VISIBILITY_OUTLINED, size=12, color=ft.colors.OUTLINE),
+                        ft.Text(str(getattr(book, 'view_count', 0)), size=10, color=ft.colors.OUTLINE),
+                        ft.Container(width=8),
+                        ft.Icon(ft.icons.DOWNLOAD_OUTLINED, size=12, color=ft.colors.OUTLINE),
+                        ft.Text(str(getattr(book, 'download_count', 0)), size=10, color=ft.colors.OUTLINE),
+                    ], alignment=ft.MainAxisAlignment.CENTER, spacing=3),
                 ],
                 spacing=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -115,7 +122,7 @@ class CatalogPage:
 
         book_by_id = {b.id: b for b in self.books}
         items = []
-        for book_id, page in list(progress.items())[:6]:
+        for book_id, page in list(progress.items())[:5]:
             book = book_by_id.get(book_id)
             if not book:
                 continue
@@ -124,21 +131,24 @@ class CatalogPage:
                     ft.Container(
                         content=ft.Image(
                             src=book.cover if book.cover else "assets/logo.png",
-                            width=140, height=185,
+                            width=100, height=140,
                             fit=ft.ImageFit.COVER,
                             border_radius=ft.border_radius.all(8),
                         ),
                         alignment=ft.alignment.center,
                     ),
-                    ft.Text(book.title, size=13, weight=ft.FontWeight.BOLD,
-                            max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, text_align=ft.TextAlign.CENTER),
-                    ft.Text(f"Страница {page}", size=11, color=ft.colors.PRIMARY,
+                    ft.Text(book.title, size=12, weight=ft.FontWeight.W_600,
+                            max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
+                            text_align=ft.TextAlign.CENTER,
+                            tooltip=book.title),
+                    ft.Text(f"Стр. {page}", size=10, color=ft.colors.PRIMARY,
                             text_align=ft.TextAlign.CENTER),
-                ], spacing=6, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                width=170, padding=10,
+                ], spacing=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                width=120, padding=6,
                 bgcolor=ft.colors.SURFACE_VARIANT, border_radius=10,
                 on_click=lambda e, b=book, p=page: self._on_continue_reading(b, p),
                 ink=True,
+                tooltip=f"Продолжить с страницы {page}",
             ))
 
         if not items:
@@ -147,18 +157,17 @@ class CatalogPage:
         return ft.Container(
             content=ft.Column([
                 ft.Row([
-                    ft.Icon(ft.icons.HISTORY, size=20, color=ft.colors.PRIMARY),
-                    ft.Text("Продолжить чтение", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Icon(ft.icons.HISTORY, size=18, color=ft.colors.PRIMARY),
+                    ft.Text("Продолжить чтение", size=14, weight=ft.FontWeight.BOLD),
                 ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                ft.Divider(height=8, color=ft.colors.OUTLINE_VARIANT),
                 ft.Row(
                     items,
                     scroll=ft.ScrollMode.AUTO,
-                    spacing=15,
-                    run_spacing=15,
+                    spacing=10,
+                    run_spacing=10,
                 ),
-            ]),
-            padding=ft.padding.only(left=20, right=20, top=10, bottom=5),
+            ], spacing=4),
+            padding=ft.padding.only(left=20, right=20, top=8, bottom=2),
         )
 
     def _on_continue_reading(self, book: Book, page: int):
