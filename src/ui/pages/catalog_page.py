@@ -160,11 +160,14 @@ class CatalogPage:
                     ft.Icon(ft.icons.HISTORY, size=18, color=ft.colors.PRIMARY),
                     ft.Text("Продолжить чтение", size=14, weight=ft.FontWeight.BOLD),
                 ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                ft.Row(
-                    items,
-                    scroll=ft.ScrollMode.AUTO,
-                    spacing=10,
-                    run_spacing=10,
+                ft.Container(
+                    content=ft.Row(
+                        items,
+                        scroll=ft.ScrollMode.AUTO,
+                        spacing=10,
+                        run_spacing=10,
+                    ),
+                    height=220,
                 ),
             ], spacing=4),
             padding=ft.padding.only(left=20, right=20, top=8, bottom=2),

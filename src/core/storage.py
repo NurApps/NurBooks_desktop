@@ -29,10 +29,18 @@ class Storage:
         self.pdfs_path = DEFAULT_PDFS_PATH
         self.downloads_path = NURBOOKS_DOWNLOADS_PATH
         self.github_base_url = github_base_url
-        self._extract_initial_data()
-        self.ensure_directories()
-        self.database = Database()
-        self.author_manager = AuthorManager()
+
+        self.database = None
+        self.author_manager = None
+
+        try:
+            self._extract_initial_data()
+            self.ensure_directories()
+            self.database = Database()
+            self.author_manager = AuthorManager()
+        except Exception as e:
+            from src.core.logger import get_logger
+            get_logger(__name__).warning(f"Storage init degraded: {e}")
 
         # Кэш в памяти
         self._books_cache = None
@@ -114,6 +122,9 @@ class Storage:
 
         Источник: Firestore через API-сервер, при недоступности — локальный SQLite-кэш.
         """
+        if not self.database:
+            return self._books_cache or []
+
         now = time.time()
         ttl_expired = (now - self._last_load_time) > self._cache_ttl
 
@@ -182,6 +193,8 @@ class Storage:
 
     def load_authors(self, force: bool = False) -> list[Author]:
         """Загружает авторов с кэшированием."""
+        if not self.author_manager:
+            return self._authors_cache or []
         if self._authors_cache is not None and not force:
             return self._authors_cache
         self._authors_cache = self.author_manager.load_authors()
@@ -193,6 +206,8 @@ class Storage:
 
     def save_books(self, books: list[Book]):
         """Сохраняет книги в базу данных SQLite"""
+        if not self.database:
+            return
         # Очищаем таблицу и добавляем все книги заново
         self.database.clear_books()
         for book in books:
@@ -205,7 +220,8 @@ class Storage:
 
     def save_authors(self, authors: list[Author]):
         """Сохраняет авторов через AuthorManager"""
-        self.author_manager.save_authors(authors)
+        if self.author_manager:
+            self.author_manager.save_authors(authors)
 
     def _resolve_download_path(self, path: str) -> str:
         """Разрешает путь загрузки: 'downloads' -> реальный путь в ~/Downloads/downloads-nurbooks"""
