@@ -83,6 +83,8 @@ jobs:
         pip install -r requirements.txt
 
     - name: Build Executable
+      env:
+        NURBOOKS_API_KEY: ${{ secrets.NURBOOKS_API_KEY }}
       run: |
         flet pack src/ui/main.py --name "NurBooks" --icon "assets/logo.ico"
 
@@ -121,6 +123,8 @@ jobs:
         pip install -r requirements.txt
 
     - name: Build app executable (flet pack)
+      env:
+        NURBOOKS_API_KEY: ${{ secrets.NURBOOKS_API_KEY }}
       run: |
         flet pack src/ui/main.py --name "NurBooks" --icon "assets/logo.ico"
 

@@ -252,7 +252,7 @@ class AccountWidget:
                 self._notify("Регистрация успешна", f"Вы зарегистрированы как: {nickname}", "success")
                 self._after_change()
             else:
-                self._register_status_text.value = "Не удалось создать аккаунт. Возможно, ник уже занят."
+                self._register_status_text.value = "Не удалось создать аккаунт. Возможно, этот ник уже используется."
                 self._register_status_text.color = ft.colors.ERROR
             self.page.update()
 

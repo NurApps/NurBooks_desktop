@@ -599,18 +599,18 @@ class FirebaseClient:
     def register_with_nickname(self, nickname: str, password: str) -> str | None:
         """Регистрация по нику и паролю (сохраняет профиль на сервере)."""
         email = _nickname_to_email(nickname)
+
+        # Если уже есть анонимная сессия — выходим из неё,
+        # чтобы signUp создал новый аккаунт с email+password.
+        # (accounts:update не устанавливает пароль, вход по паролю будет невозможен.)
         if auth_session.uid:
-            data = _auth_request("update", {
-                "idToken": auth_session.token or "",
-                "email": email,
-                "returnSecureToken": True,
-            })
-        else:
-            data = _auth_request("signUp", {
-                "email": email,
-                "password": password,
-                "returnSecureToken": True,
-            })
+            auth_session.clear()
+
+        data = _auth_request("signUp", {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True,
+        })
         if not data or not data.get("idToken"):
             return None
         self._finalize_auth(data, email)

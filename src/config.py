@@ -41,7 +41,7 @@ _load_env_file()
 # API сервер — URL деплоя на Render
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://nurbooks-api.onrender.com")
 # Ключ API сервера (NURBOOKS_API_KEY на Render). Держите в .env!
-API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
+API_KEY = os.environ.get("NURBOOKS_API_KEY", "r4avD5b70owsl7W4qgkK-JrHvFPxy7ald_eJEifml2Q")
 
 APP_NAME = "NurBooks"
 APP_VERSION = "1.4.0  Beta"
