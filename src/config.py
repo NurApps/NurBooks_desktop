@@ -41,7 +41,7 @@ _load_env_file()
 # API сервер — URL деплоя на Render
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://nurbooks-api.onrender.com")
 # Ключ API сервера (NURBOOKS_API_KEY на Render). Держите в .env!
-API_KEY = os.environ.get("NURBOOKS_API_KEY", "r4avD5b70owsl7W4qgkK-JrHvFPxy7ald_eJEifml2Q")
+API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
 
 APP_NAME = "NurBooks"
 APP_VERSION = "1.4.0  Beta"
@@ -99,11 +99,11 @@ SERVICE_ACCOUNT_KEY_PATH = _resolve_service_account_key()
 # Настройки Firebase
 class FirebaseConfig:
     """Конфигурация Firebase. Web API-ключ держите в .env (переменная FIREBASE_API_KEY)."""
-    PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "nurbooks-3b694")
+    PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "")
     API_KEY = os.environ.get("FIREBASE_API_KEY", "")
-    AUTH_DOMAIN = os.environ.get("FIREBASE_AUTH_DOMAIN", "nurbooks-3b694.firebaseapp.com")
-    MESSAGING_SENDER_ID = os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "9086132352")
-    APP_ID = os.environ.get("FIREBASE_APP_ID", "1:9086132352:web:fbed7cfafa2df0d4a20665")
+    AUTH_DOMAIN = os.environ.get("FIREBASE_AUTH_DOMAIN", "")
+    MESSAGING_SENDER_ID = os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "")
+    APP_ID = os.environ.get("FIREBASE_APP_ID", "")
     SERVICE_ACCOUNT_KEY_PATH = SERVICE_ACCOUNT_KEY_PATH
 
     @classmethod

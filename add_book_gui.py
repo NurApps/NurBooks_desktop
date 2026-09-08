@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath('.'))
 from src.config import DEFAULT_DATA_PATH, DEFAULT_PDFS_PATH
 from src.core.database import Database
 from src.core.models import Book
+from src.core.utils import convert_github_url
 
 # Настройка темы custom tkinter
 ctk.set_appearance_mode("system")
@@ -315,19 +316,7 @@ class BookManagerApp:
 
     def _convert_to_raw_url(self, url: str) -> str:
         """Конвертирует GitHub URL в raw URL для прямого доступа к файлу"""
-        if not url:
-            return url
-
-        # Поддержка GitHub Releases (новый формат)
-        # https://github.com/salihhhh014/NurBooks/releases/download/COVERS/filename.png
-        if "github.com" in url and "/releases/download/" in url:
-            # Для Releases уже raw-адреса - просто возвращаем как есть
-            return url
-
-        # Поддержка GitHub blob (старый формат)
-        if "github.com" in url and "/blob/" in url:
-            return url.replace("/blob/", "/raw/")
-        return url
+        return convert_github_url(url)
 
     def _check_url_exists(self, url: str, file_type: str = "файл") -> bool:
         """

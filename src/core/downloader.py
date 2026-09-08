@@ -6,7 +6,7 @@ import requests
 
 from src.config import DEFAULT_DATA_PATH, NURBOOKS_DOWNLOADS_PATH
 from src.core.models import Book
-from src.core.utils import format_file_size
+from src.core.utils import convert_github_url, format_file_size
 
 
 class Downloader:
@@ -20,17 +20,7 @@ class Downloader:
 
     def _convert_to_raw_url(self, url: str) -> str:
         """Конвертирует GitHub blob URL в raw URL для прямого доступа к файлу"""
-        if not url:
-            return url
-
-        # Если уже raw ссылка
-        if "raw.githubusercontent.com" in url:
-            return url
-
-        if "github.com" in url and "/blob/" in url:
-            # Используем /raw/ формат - он надежнее
-            return url.replace("/blob/", "/raw/")
-        return url
+        return convert_github_url(url)
 
     def _get_book_filename(self, book: Book, original_filename: str = None) -> str:
         """

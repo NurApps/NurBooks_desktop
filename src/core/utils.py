@@ -1,4 +1,33 @@
 import hashlib
+import re
+
+
+def convert_github_url(url: str) -> str:
+    """Конвертирует GitHub blob URL в raw URL для прямого доступа к файлу.
+
+    Поддерживает:
+    - https://github.com/owner/repo/blob/branch/path/file -> raw
+    - https://github.com/owner/repo/releases/download/... -> без изменений
+    - Уже raw-ссылки -> без изменений
+    """
+    if not url or not url.startswith(("http://", "https://")):
+        return url
+
+    if "raw.githubusercontent.com" in url:
+        return url
+
+    if "releases/download" in url:
+        return url
+
+    match = re.match(
+        r"https://github\.com/([^/]+)/([^/]+)/blob/(.+)/(.+)",
+        url,
+    )
+    if match:
+        owner, repo, branch, filepath = match.groups()
+        return f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{filepath}"
+
+    return url
 
 
 def format_file_size(size_bytes: int) -> str:

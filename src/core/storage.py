@@ -8,6 +8,7 @@ from src.config import DEFAULT_DATA_PATH, DEFAULT_PDFS_PATH, NURBOOKS_DOWNLOADS_
 from src.core.author_manager import AuthorManager
 from src.core.database import Database
 from src.core.models import Author, Book, UserSettings
+from src.core.utils import convert_github_url
 
 
 class Storage:
@@ -52,12 +53,7 @@ class Storage:
 
     def _convert_to_raw_url(self, url: str) -> str:
         """Конвертирует GitHub blob URL в raw URL для прямого доступа к файлу"""
-        if not url:
-            return url
-
-        if "github.com" in url and "/blob/" in url:
-            return url.replace("/blob/", "/raw/")
-        return url
+        return convert_github_url(url)
 
     def download_from_github(self, github_url: str, filename: str = None) -> str | None:
         """

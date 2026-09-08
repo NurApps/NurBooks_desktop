@@ -30,13 +30,8 @@ def cleanup_temp_files():
 
 def _convert_github_url(url: str) -> str:
     """Конвертирует GitHub ссылку в raw-ссылку."""
-    if not url:
-        return url
-    if "raw.githubusercontent.com" in url:
-        return url
-    if "github.com" in url and "/blob/" in url:
-        return url.replace("/blob/", "/raw/")
-    return url
+    from src.core.utils import convert_github_url
+    return convert_github_url(url)
 
 
 class PDFReaderPage:

@@ -14,27 +14,8 @@ sys.path.insert(0, os.path.abspath('.'))
 
 def convert_github_url(url):
     """Конвертирует GitHub blob URL в raw URL для прямого скачивания"""
-    if not url or not url.startswith('https://github.com/'):
-        return url
-
-    # Формат: https://github.com/owner/repo/blob/main/path/to/file
-    # Конвертируем в: https://raw.githubusercontent.com/owner/repo/main/path/to/file
-    match = re.match(
-        r'https://github\.com/([^/]+)/([^/]+)/blob/(.+)/(.+)',
-        url
-    )
-    if match:
-        owner = match.group(1)
-        repo = match.group(2)
-        branch = match.group(3)
-        filepath = match.group(4)
-        return f'https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{filepath}'
-
-    # Уже releases/download - оставляем как есть
-    if 'releases/download' in url:
-        return url
-
-    return url
+    from src.core.utils import convert_github_url as _convert
+    return _convert(url)
 
 
 def migrate_to_firestore():

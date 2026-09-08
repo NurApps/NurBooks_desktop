@@ -26,7 +26,7 @@ def test_convert_raw_url_keeps_raw():
 def test_convert_blob_to_raw():
     d = Downloader()
     url = "https://github.com/NurApps/repo/blob/main/x.pdf"
-    assert d._convert_to_raw_url(url) == "https://github.com/NurApps/repo/raw/main/x.pdf"
+    assert d._convert_to_raw_url(url) == "https://raw.githubusercontent.com/NurApps/repo/main/x.pdf"
 
 
 def test_convert_non_url_passthrough():
