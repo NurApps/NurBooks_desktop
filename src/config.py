@@ -44,7 +44,7 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "https://nurbooks-api.onrender.com
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
 
 APP_NAME = "NurBooks"
-APP_VERSION = "1.4.0  Beta"
+APP_VERSION = "1.5.0  Beta"
 APP_DESCRIPTION = "Электронная исламская библиотека от NurApps."
 DEVELOPERS = ["Salikh Suyundikov", "Daniyal Kislicky"]
 TESTERS = ["Mukhammad Odilov"]
