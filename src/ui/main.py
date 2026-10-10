@@ -65,7 +65,7 @@ class NurBooksApp:
         # Автоматический вход (анонимный или восстановление сессии)
         self._ensure_authentication()
 
-        # Инициализация корзины
+        # Инициализация очереди загрузки
         self.cart_widget = CartWidget(
             on_download_all=self._on_cart_download,
             on_remove_item=self._on_cart_remove,
@@ -96,7 +96,7 @@ class NurBooksApp:
             bgcolor=ft.colors.BACKGROUND
         )
 
-        # Контейнер для корзины
+        # Контейнер для очереди загрузки
         self.cart_container = ft.Container(
             content=self.cart_widget.build(),
             right=20,
@@ -134,7 +134,7 @@ class NurBooksApp:
                         self.notification_panel_container,
                     ], expand=True),
 
-                    # Корзина (поверх основного содержимого)
+                    # Очередь загрузки (поверх основного содержимого)
                     self.cart_container
                 ], expand=True),
             ], expand=True)
@@ -263,11 +263,11 @@ class NurBooksApp:
                         )
                     ]),
 
-                    # Кнопка корзины с бейджем
+                    # Кнопка очереди загрузки с бейджем
                     ft.Stack([
                         ft.IconButton(
-                            icon=ft.icons.SHOPPING_CART,
-                            tooltip="Корзина",
+                            icon=ft.icons.DOWNLOAD,
+                            tooltip="Очередь загрузки",
                             on_click=self._toggle_cart,
                             icon_color=ft.colors.PRIMARY
                         ),
@@ -497,18 +497,18 @@ class NurBooksApp:
             self.notification_panel_container.visible = True
             # Отмечаем уведомления как прочитанные
             self.notification_manager.mark_as_read()
-            # Скрываем корзину если она открыта
+            # Скрываем очередь загрузки если она открыта
             if self.cart_visible:
                 self._toggle_cart(update_ui=False)
         self._update_notification_badge()
         self.page.update()
 
     def _toggle_cart(self, e=None, update_ui: bool = True):
-        """Показывает/скрывает корзину"""
+        """Показывает/скрывает очередь загрузки"""
         self.cart_visible = not self.cart_visible
         self.cart_container.visible = self.cart_visible
 
-        # Обновляем содержимое корзины
+        # Обновляем содержимое очереди
         if self.cart_visible:
             self.cart_widget._update_cart()
             # Скрываем панель уведомлений если она открыта
@@ -519,7 +519,7 @@ class NurBooksApp:
             self.page.update()
 
     def _close_cart(self, e=None, update_ui: bool = True):
-        """Закрывает корзину"""
+        """Закрывает очередь загрузки"""
         self.cart_visible = False
         self.cart_container.visible = False
         self._update_cart_badge()
@@ -746,69 +746,12 @@ class NurBooksApp:
             pass
 
     def _on_book_selected(self, book: Book):
-        """Обработчик выбора книги"""
+        """Обработчик выбора книги — прямой переход в карточку (без диалога)."""
         self.selected_book = book
         threading.Thread(target=self._increment_view_async, args=(book,), daemon=True).start()
-
-        # Проверяем, скачана ли книга
-        is_downloaded, _ = self.downloader.is_book_downloaded(book) if book else (False, None)
-
-        # Показываем диалог с выбором действия
-        dlg = ft.AlertDialog(
-            title=ft.Text(book.title, text_align=ft.TextAlign.CENTER),
-            content=ft.Column([
-                ft.Image(
-                    src=book.cover if book.cover else "assets/logo.png",
-                    width=100,
-                    height=150,
-                    fit=ft.ImageFit.COVER,
-                    border_radius=5
-                ),
-                ft.Text(f"Автор: {book.author}", text_align=ft.TextAlign.CENTER),
-                ft.Text(f"Категория: {book.category}", text_align=ft.TextAlign.CENTER),
-                ft.Divider(),
-                ft.Text("Выберите действие:", text_align=ft.TextAlign.CENTER),
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
-            actions=[
-                ft.Row([
-                    ft.TextButton(
-                        "Просмотреть",
-                        icon=ft.icons.VISIBILITY,
-                        on_click=lambda e: self._open_book_view(book, dlg),
-                        expand=True
-                    ),
-                    ft.TextButton(
-                        "Читать",
-                        icon=ft.icons.MENU_BOOK,
-                        on_click=lambda e: self._show_pdf_reader(book, dlg),
-                        expand=True,
-                        visible=is_downloaded
-                    ),
-                    ft.TextButton(
-                        "Инфо",
-                        icon=ft.icons.INFO,
-                        on_click=lambda e: self._show_book_info_dialog(book, dlg),
-                        expand=True,
-                        visible=not is_downloaded
-                    ),
-                    ft.TextButton(
-                        "В корзину",
-                        icon=ft.icons.ADD_SHOPPING_CART,
-                        on_click=lambda e: self._add_to_cart(book, dlg),
-                        expand=True
-                    ),
-                    ft.TextButton(
-                        "Выйти",
-                        icon=ft.icons.CLOSE,
-                        on_click=lambda _: self.page.close(dlg),
-                        expand=True
-                    ),
-                ], spacing=5)
-            ],
-            actions_alignment=ft.MainAxisAlignment.CENTER
-        )
-        self.page.open(dlg)
-        self.page.update()
+        # Единый поток: Каталог → Книга [Скачать/Читать]. Диалог выбора
+        # убран (distill): состояние скачанности решает BookViewPage.
+        self._open_book_view(book)
 
     def _show_book_info_dialog(self, book: Book, parent_dlg: ft.AlertDialog | None = None):
         """Показывает диалог с информацией о том как читать книгу"""
@@ -914,18 +857,21 @@ class NurBooksApp:
         self.page.update()
 
     def _add_to_cart(self, book: Book, dlg: ft.AlertDialog | None = None):
-        """Добавляет книгу в корзину"""
+        """Добавляет книгу в очередь загрузки"""
         if dlg:
-            self.page.close(dlg)
+            try:
+                self.page.close(dlg)
+            except Exception:
+                pass
 
         if self.cart_widget.add_book(book):
             self.notification_manager.add_notification(
                 title="Книга добавлена",
-                message=f"Книга '{book.title}' добавлена в корзину",
+                message=f"Книга '{book.title}' добавлена в очередь загрузки",
                 type="success"
             )
 
-            # Показываем корзину, если она не видна
+            # Показываем очередь, если она не видна
             if not self.cart_visible:
                 self._toggle_cart(update_ui=False)
 
@@ -934,14 +880,20 @@ class NurBooksApp:
             self.page.update()
         else:
             self.page.snack_bar = ft.SnackBar(
-                content=ft.Text("Эта книга уже в корзине"),
+                content=ft.Text("Эта книга уже в очереди загрузки"),
                 action="OK"
             )
             self.page.snack_bar.open = True
             self.page.update()
 
     def _on_cart_download(self, books: list):
-        """Скачивание книг из корзины"""
+        """Скачивание книг из очереди загрузки"""
+        try:
+            self.cart_widget.set_downloading(True)
+            self.page.update()
+        except Exception:
+            pass
+
         def download_all():
             for book in books:
                 try:
@@ -959,7 +911,7 @@ class NurBooksApp:
                         type="success"
                     )
 
-                    # Удаляем книгу из корзины после скачивания
+                    # Удаляем книгу из очереди после скачивания
                     self.cart_widget.remove_book(book.id)
 
                 except Exception as e:
@@ -971,10 +923,18 @@ class NurBooksApp:
 
             self._update_notification_panel()
             self._update_cart_badge()
+            try:
+                self.cart_widget.set_downloading(False)
+            except Exception:
+                pass
 
             # Показываем сообщение об успешном скачивании
+            if len(books) == 1:
+                download_msg = "Книга скачана и доступна для чтения"
+            else:
+                download_msg = f"Скачано книг: {len(books)}. Они доступны для чтения"
             self.page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"Скачано {len(books)} книг"),
+                content=ft.Text(download_msg),
                 action="OK"
             )
             self.page.snack_bar.open = True
@@ -983,12 +943,12 @@ class NurBooksApp:
         threading.Thread(target=download_all, daemon=True).start()
 
     def _on_cart_remove(self, book_id: int):
-        """Удаление книги из корзины"""
+        """Удаление книги из очереди загрузки"""
         self.cart_widget.remove_book(book_id)
 
         self.notification_manager.add_notification(
             title="Книга удалена",
-            message="Книга удалена из корзины",
+            message="Книга убрана из очереди загрузки",
             type="info"
         )
 

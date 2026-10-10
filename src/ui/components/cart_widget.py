@@ -13,17 +13,18 @@ class CartWidget:
         self.on_close = on_close
         self.items: list[dict[str, Any]] = []  # [{book: Book, selected: bool}]
 
-        # Создаем UI элементы
+        # Создаем UI элементы (очередь загрузки: без выбора, качаем всё разом)
         self.cart_list = ft.ListView(expand=True, spacing=5)
-        self.total_label = ft.Text("Книг в корзине: 0", size=14)
+        self.total_label = ft.Text("Книг в очереди: 0", size=14)
+        self._downloading = False
         self.download_button = ft.ElevatedButton(
-            "Скачать все",
+            "Скачать",
             icon=ft.icons.DOWNLOAD,
             on_click=self._on_download_all_click,
             disabled=True
         )
         self.clear_button = ft.TextButton(
-            "Очистить корзину",
+            "Очистить очередь",
             icon=ft.icons.DELETE,
             on_click=self._on_clear_cart
         )
@@ -31,8 +32,8 @@ class CartWidget:
         self.content = self._create_content()
 
     def add_book(self, book: Book):
-        """Добавляет книгу в корзину"""
-        # Проверяем, нет ли уже этой книги в корзине
+        """Добавляет книгу в очередь загрузки"""
+        # Проверяем, нет ли уже этой книги в очереди загрузки
         for item in self.items:
             if item['book'].id == book.id:
                 return False
@@ -45,7 +46,7 @@ class CartWidget:
         return True
 
     def remove_book(self, book_id: int):
-        """Удаляет книгу из корзины"""
+        """Удаляет книгу из очереди загрузки"""
         self.items = [item for item in self.items if item['book'].id != book_id]
         self._update_cart()
 
@@ -54,21 +55,15 @@ class CartWidget:
         return [item['book'] for item in self.items if item['selected']]
 
     def get_all_books(self) -> list[Book]:
-        """Возвращает все книги в корзине"""
+        """Возвращает все книги в очереди загрузки"""
         return [item['book'] for item in self.items]
 
     def _create_cart_item(self, item: dict[str, Any]) -> ft.Control:
-        """Создает элемент корзины"""
+        """Создает элемент очереди загрузки"""
         book = item['book']
 
         return ft.Container(
             content=ft.Row([
-                # Чекбокс выбора
-                ft.Checkbox(
-                    value=item['selected'],
-                    on_change=lambda e, bid=book.id: self._on_item_select(bid, e.control.value)
-                ),
-
                 # Иконка
                 ft.Container(
                     content=ft.Icon(ft.icons.PICTURE_AS_PDF, color=ft.colors.RED, size=22),
@@ -90,7 +85,7 @@ class CartWidget:
                 ft.IconButton(
                     icon=ft.icons.DELETE_OUTLINE,
                     icon_size=16,
-                    tooltip="Удалить",
+                    tooltip="Убрать из очереди",
                     on_click=lambda e, bid=book.id: self._on_remove_item(bid)
                 ),
             ], spacing=12),
@@ -102,7 +97,7 @@ class CartWidget:
         )
 
     def _create_content(self) -> ft.Control:
-        """Создает содержимое виджета корзины"""
+        """Создает содержимое виджета очереди загрузки"""
         return ft.Container(
             content=ft.Column([
                 # Заголовок
@@ -111,11 +106,11 @@ class CartWidget:
                         ft.IconButton(
                             icon=ft.icons.CLOSE,
                             icon_size=20,
-                            tooltip="Скрыть корзину",
+                            tooltip="Скрыть очередь",
                             on_click=lambda e: self.on_close() if self.on_close else None
                         ),
-                        ft.Icon(ft.icons.SHOPPING_CART, size=20, color=ft.colors.PRIMARY),
-                        ft.Text("Корзина для скачивания", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Icon(ft.icons.DOWNLOAD, size=20, color=ft.colors.PRIMARY),
+                        ft.Text("Очередь загрузки", size=16, weight=ft.FontWeight.BOLD),
                         ft.Container(expand=True),
                         ft.TextButton(
                             "Очистить",
@@ -129,7 +124,7 @@ class CartWidget:
 
                 ft.Divider(height=1),
 
-                # Список книг или пустая корзина
+                # Список книг или пустая очередь
                 ft.Container(
                     content=ft.Column([
                         self.total_label,
@@ -162,28 +157,39 @@ class CartWidget:
             )
         )
 
+    def set_downloading(self, busy: bool):
+        """Состояние скачивания: честный статус вместо молчаливого thread."""
+        self._downloading = busy
+        self._update_cart()
+
     def _update_cart(self):
-        """Обновляет содержимое корзины"""
+        """Обновляет содержимое очереди"""
         # Обновляем список
         self.cart_list.controls.clear()
         for item in self.items:
             self.cart_list.controls.append(self._create_cart_item(item))
 
-        # Обновляем счетчик
-        selected_count = len([item for item in self.items if item['selected']])
         total_count = len(self.items)
-        self.total_label.value = f"Выбрано: {selected_count} из {total_count}"
+        if total_count == 1:
+            self.total_label.value = "В очереди: 1 книга"
+        else:
+            self.total_label.value = f"В очереди: {total_count} книг"
 
         # Обновляем состояние кнопки
-        self.download_button.disabled = selected_count == 0
+        if self._downloading:
+            self.download_button.text = "Скачивание…"
+            self.download_button.disabled = True
+        else:
+            self.download_button.text = f"Скачать ({total_count})" if total_count else "Скачать"
+            self.download_button.disabled = total_count == 0
 
-        # Если корзина пуста, показываем сообщение
+        # Если очередь пуста, показываем сообщение
         if total_count == 0:
             self.cart_list.controls.append(
                 ft.Container(
                     content=ft.Column([
-                        ft.Icon(ft.icons.SHOPPING_CART_OUTLINED, size=48, color=ft.colors.GREY),
-                        ft.Text("Корзина пуста", size=16, color=ft.colors.GREY),
+                        ft.Icon(ft.icons.DOWNLOAD_OUTLINED, size=48, color=ft.colors.GREY),
+                        ft.Text("Очередь пуста", size=16, color=ft.colors.GREY),
                         ft.Text("Добавьте книги из каталога", size=12, color=ft.colors.GREY_600),
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     padding=20,
@@ -192,35 +198,31 @@ class CartWidget:
             )
 
     def _on_item_select(self, book_id: int, selected: bool):
-        """Обработчик выбора/снятия выбора книги"""
-        for item in self.items:
-            if item['book'].id == book_id:
-                item['selected'] = selected
-                break
+        """Оставлен для совместимости: выбор больше не используется, всё качается."""
         self._update_cart()
 
     def _on_remove_item(self, book_id: int):
-        """Обработчик удаления книги из корзины"""
+        """Обработчик удаления книги из очереди"""
         self.remove_book(book_id)
         if self.on_remove_item:
             self.on_remove_item(book_id)
 
     def _on_download_all_click(self, e):
-        """Обработчик скачивания всех выбранных книг"""
-        selected_books = self.get_selected_books()
-        if selected_books and self.on_download_all:
-            self.on_download_all(selected_books)
+        """Обработчик скачивания всех книг из очереди"""
+        books = self.get_all_books()
+        if books and self.on_download_all:
+            self.on_download_all(books)
 
     def _on_clear_cart(self, e):
-        """Обработчик очистки корзины"""
+        """Обработчик очистки очереди"""
         self.items.clear()
         self._update_cart()
 
     def build(self) -> ft.Control:
-        """Возвращает виджет корзины"""
+        """Возвращает виджет очереди загрузки"""
         return self.content
 
     def show(self):
-        """Показывает корзину"""
+        """Показывает очередь загрузки"""
         self._update_cart()
         return self.content

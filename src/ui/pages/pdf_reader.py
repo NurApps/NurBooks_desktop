@@ -152,13 +152,17 @@ class PDFReaderPage:
             spacing=20,
         )
 
-        # Оверлей
+        # Оверлей (только для первичной загрузки / ошибок, не для листания)
         self.overlay = ft.Container(
             content=self.loading_column,
             alignment=ft.alignment.center,
             expand=True,
             bgcolor=ft.colors.SURFACE,
         )
+
+        # Тонкий индикатор навигации: gapless-листание не прячет страницу
+        self.nav_progress = ft.ProgressBar(bar_height=2, visible=False)
+        self._nav_generation = 0
 
         # Навигация
         self.prev_btn = ft.IconButton(
@@ -244,7 +248,23 @@ class PDFReaderPage:
             bgcolor=ft.colors.SURFACE_VARIANT,
         )
 
-        return ft.Column([self.search_panel, top_bar, viewer, bottom_bar], expand=True, spacing=0)
+        return ft.Column(
+            [self.search_panel, top_bar, self.nav_progress, viewer, bottom_bar],
+            expand=True, spacing=0,
+        )
+
+    def _set_nav_busy(self, busy: bool):
+        """Gapless-навигация: страница остаётся видимой, сверху тонкая полоса."""
+        try:
+            self._nav_generation += 1 if busy else 0
+            self.nav_progress.visible = busy
+            self.prev_btn.disabled = busy or self.current_page <= 0
+            self.next_btn.disabled = busy or (
+                self.total_pages and self.current_page >= self.total_pages - 1
+            )
+            self.page.update()
+        except Exception:
+            pass
 
     def _show_loading(self, text: str = "Загрузка..."):
         """Показывает индикатор загрузки"""
@@ -267,6 +287,10 @@ class PDFReaderPage:
         self.overlay.content = self.error_column
         self.overlay.visible = True
         self.page_image.visible = False
+        try:
+            self.nav_progress.visible = False
+        except Exception:
+            pass
         try:
             self.page.update()
         except Exception:
@@ -301,11 +325,12 @@ class PDFReaderPage:
                 self.image_stack.width = scaled_width
                 self.image_stack.height = scaled_height
 
-            # Устанавливаем src изображения
+            # Устанавливаем src изображения (старый кадр держим до конца — gapless)
             self.page_image.src = image_path
             self.page_image.visible = True
             self.placeholder.visible = False
             self.overlay.visible = False
+            self.nav_progress.visible = False
 
             # Обновляем счётчик
             self.total_pages_text.value = str(self.total_pages)
@@ -467,13 +492,15 @@ class PDFReaderPage:
             print(f"[PDF] Ошибка рендеринга: {e}")
             return None
 
-    def _preload_pages(self):
-        """Предзагрузка соседних страниц"""
+    def _preload_pages(self, generation: int | None = None):
+        """Предзагрузка соседних страниц (приоритет +1/-1, с отменой по generation)."""
         time.sleep(0.5)
 
-        offsets = [1, 2, -1, 3, 4]
+        offsets = [1, -1, 2, 3]
         for offset in offsets:
             if self._stop_preload.is_set():
+                break
+            if generation is not None and generation != self._nav_generation:
                 break
             pg = self.current_page + offset
             if 0 <= pg < self.total_pages:
@@ -482,6 +509,13 @@ class PDFReaderPage:
     def _show_page(self, page_num: int):
         """Показывает страницу (вызывается из потока)"""
         if page_num < 0 or page_num >= self.total_pages:
+            try:
+                self.nav_progress.visible = False
+                self.prev_btn.disabled = self.current_page <= 0
+                self.next_btn.disabled = self.total_pages and self.current_page >= self.total_pages - 1
+                self.page.update()
+            except Exception:
+                pass
             return
 
         self.current_page = page_num
@@ -495,17 +529,23 @@ class PDFReaderPage:
         # Ошибка
         self._show_error("Ошибка рендеринга")
 
+    def _request_preload(self):
+        gen = self._nav_generation
+        def _run():
+            self._preload_pages(gen)
+        threading.Thread(target=_run, daemon=True).start()
+
     def _prev_page(self, e):
         if self.current_page > 0:
-            self._show_loading(f"Страница {self.current_page}...")
+            self._set_nav_busy(True)
             threading.Thread(target=self._show_page, args=(self.current_page - 1,), daemon=True).start()
-            threading.Thread(target=self._preload_pages, daemon=True).start()
+            self._request_preload()
 
     def _next_page(self, e):
         if self.current_page < self.total_pages - 1:
-            self._show_loading(f"Страница {self.current_page + 2}...")
+            self._set_nav_busy(True)
             threading.Thread(target=self._show_page, args=(self.current_page + 1,), daemon=True).start()
-            threading.Thread(target=self._preload_pages, daemon=True).start()
+            self._request_preload()
 
     def _on_scroll(self, e: ft.OnScrollEvent):
         if e.event_type == "user" and e.scroll_delta:
@@ -531,17 +571,20 @@ class PDFReaderPage:
             self._apply_zoom()
 
     def _apply_zoom(self):
-        """Применяет новый зум"""
-        # Обновляем метку
+        """Применяет новый зум без блокирующего оверлея"""
         self.zoom_label.value = f"{int(self.zoom * 100)}%"
-        # Показываем loading
-        self._show_loading(f"Масштаб {int(self.zoom * 100)}%...")
+        self._set_nav_busy(True)
+        try:
+            self.page.update()
+        except Exception:
+            pass
         # Рендерим в фоне и показываем
         def render_zoomed():
             path = self._render_page(self.current_page)
             if path:
                 self._show_page_image(path)
             else:
+                self.nav_progress.visible = False
                 self._show_error("Ошибка изменения масштаба")
         threading.Thread(target=render_zoomed, daemon=True).start()
 
@@ -684,9 +727,9 @@ class PDFReaderPage:
                 self.page.snack_bar.open = True
                 self.page.update()
                 return
-            self._show_loading(f"Страница {page}...")
+            self._set_nav_busy(True)
             threading.Thread(target=self._show_page, args=(page - 1,), daemon=True).start()
-            threading.Thread(target=self._preload_pages, daemon=True).start()
+            self._request_preload()
         except ValueError:
             self.page_input.value = str(self.current_page + 1)
             self.page.update()
@@ -751,7 +794,10 @@ class PDFReaderPage:
         if results:
             target_page = results[0][0]
             if target_page != self.current_page:
-                self._show_loading("Переход к результату...")
+                try:
+                    self._set_nav_busy(True)
+                except Exception:
+                    pass
                 threading.Thread(target=self._show_page, args=(target_page,), daemon=True).start()
         self.page.update()
 

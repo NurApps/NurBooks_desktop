@@ -77,8 +77,10 @@ class BookViewPage:
             expand=True,
             visible=is_downloaded
         )
+        self.download_button.visible = not is_downloaded
 
-        # Кнопка "Инфо" - видима только если книга НЕ скачана
+        # Кнопка "Инфо" оставлена для совместимости, но скрыта:
+        # единый CTA решает состояние, лишний выбор убран (distill).
         self.info_button = ft.OutlinedButton(
             content=ft.Row([
                 ft.Icon(ft.icons.INFO),
@@ -87,7 +89,7 @@ class BookViewPage:
             on_click=self._on_info_click,
             style=ft.ButtonStyle(padding=20),
             expand=True,
-            visible=not is_downloaded
+            visible=False
         )
 
         self.content = self._create_content()
@@ -253,8 +255,9 @@ class BookViewPage:
                                 # Быстрые кнопки под обложкой
                                 ft.Row([
                                     ft.ElevatedButton(
-                                        "В корзину",
-                                        icon=ft.icons.ADD_SHOPPING_CART,
+                                        "В очередь",
+                                        icon=ft.icons.DOWNLOAD,
+                                        tooltip="Добавить в очередь загрузки",
                                         on_click=self._on_add_to_cart_click,
                                         expand=True,
                                         height=40
@@ -357,12 +360,11 @@ class BookViewPage:
                                 # Оценки и отзывы
                                 self.ratings_container,
 
-                                # Кнопки основных действий
+                                # Кнопки основных действий: один primary + В библиотеку
                                 ft.Container(
                                     content=ft.Row([
                                         self.download_button,
                                         self.read_button,
-                                        self.info_button,
                                         ft.OutlinedButton(
                                             content=ft.Row([
                                                 ft.Icon(ft.icons.BOOKMARK_ADD),
@@ -502,7 +504,8 @@ class BookViewPage:
                         )
                     ),
                     ft.ElevatedButton(
-                        "📄 Системная программа",
+                        "Системная программа",
+                        icon=ft.icons.DESCRIPTION_OUTLINED,
                         on_click=lambda e: (self.page.close(dlg), self._open_downloaded_book(filepath)),
                         width=250,
                     ),
@@ -646,23 +649,18 @@ class BookViewPage:
             self.page.update()
 
     def _update_read_button_visibility(self, is_downloaded: bool):
-        """Обновляет видимость кнопок после скачивания"""
+        """Единый primary CTA: Скачать книгу → Читать (без промежуточного Инфо)."""
         if self.read_button:
             self.read_button.visible = is_downloaded
         if self.info_button:
-            self.info_button.visible = not is_downloaded
+            self.info_button.visible = False
         if self.download_button:
-            self.download_button.disabled = is_downloaded
-            if is_downloaded:
-                self.download_button.content = ft.Row([
-                    ft.Icon(ft.icons.CHECK_CIRCLE),
-                    ft.Text("Скачано"),
-                ])
-            else:
-                self.download_button.content = ft.Row([
-                    ft.Icon(ft.icons.DOWNLOAD),
-                    ft.Text("Скачать книгу"),
-                ])
+            self.download_button.visible = not is_downloaded
+            self.download_button.disabled = False
+            self.download_button.content = ft.Row([
+                ft.Icon(ft.icons.DOWNLOAD),
+                ft.Text("Скачать книгу"),
+            ])
         self.page.update()
 
     def _on_info_click(self, e):
@@ -766,22 +764,22 @@ class BookViewPage:
             self.page.update()
 
     def _on_add_to_cart_click(self, e):
-        """Добавляет книгу в корзину"""
+        """Добавляет книгу в очередь загрузки"""
         if self.cart_widget and self.cart_widget.add_book(self.book):
             if self.notification_manager:
                 self.notification_manager.add_notification(
                     title="Книга добавлена",
-                    message=f"Книга '{self.book.title}' добавлена в корзину",
+                    message=f"Книга '{self.book.title}' добавлена в очередь загрузки",
                     type="success"
                 )
 
             self.page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"Книга '{self.book.title}' добавлена в корзину!"),
+                content=ft.Text(f"Книга '{self.book.title}' добавлена в очередь загрузки!"),
                 action="OK"
             )
         else:
             self.page.snack_bar = ft.SnackBar(
-                content=ft.Text("Эта книга уже в корзине"),
+                content=ft.Text("Эта книга уже в очереди загрузки"),
                 action="OK"
             )
 

@@ -180,18 +180,18 @@ class NotificationManager:
         )
 
     def notify_book_added_to_cart(self, book_title: str):
-        """Уведомление о добавлении в корзину"""
+        """Уведомление о добавлении в очередь загрузки"""
         return self.add_notification(
-            title="Добавлено в корзину",
-            message=f"Книга '{book_title}' добавлена в корзину",
+            title="Добавлено в очередь загрузки",
+            message=f"Книга '{book_title}' добавлена в очередь загрузки",
             type="info"
         )
 
     def notify_book_removed_from_cart(self, book_title: str):
-        """Уведомление об удалении из корзины"""
+        """Уведомление об удалении из очереди загрузки"""
         return self.add_notification(
-            title="Удалено из корзины",
-            message=f"Книга '{book_title}' удалена из корзины",
+            title="Убрано из очереди загрузки",
+            message=f"Книга '{book_title}' убрана из очереди загрузки",
             type="info"
         )
 
