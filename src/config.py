@@ -42,6 +42,9 @@ _load_env_file()
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://nurbooks-api.onrender.com")
 # Ключ API сервера (NURBOOKS_API_KEY на Render). Держите в .env!
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
+# Отдельный админ-ключ. Нужен только для управления каталогом (add_book_gui).
+# В клиентскую сборку не попадает и на сервере задаётся отдельно.
+ADMIN_API_KEY = os.environ.get("NURBOOKS_ADMIN_KEY", "")
 
 APP_NAME = "NurBooks"
 APP_VERSION = "1.5.0  Beta"

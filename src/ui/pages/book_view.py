@@ -8,6 +8,7 @@ from src.core.models import Book
 from src.core.notifications import NotificationManager
 from src.core.statistics_manager import stats  # 🔥 Централизованный менеджер статистики
 from src.core.storage import Storage
+from src.core.utils import open_in_system
 
 logger = get_logger(__name__)
 
@@ -698,7 +699,7 @@ class BookViewPage:
         """Открывает скачанную книгу"""
         try:
             if os.path.exists(filepath):
-                os.startfile(filepath) if os.name == 'nt' else os.system(f'xdg-open "{filepath}"')
+                open_in_system(filepath)
         except Exception as e:
             logger.error(f"Ошибка открытия файла '{filepath}': {e}", exc_info=True)
 
@@ -707,7 +708,7 @@ class BookViewPage:
         try:
             download_path = self.downloader.download_path
             if os.path.exists(download_path):
-                os.startfile(download_path) if os.name == 'nt' else os.system(f'xdg-open "{download_path}"')
+                open_in_system(download_path)
         except Exception as e:
             logger.error(f"Ошибка открытия папки '{download_path}': {e}", exc_info=True)
 

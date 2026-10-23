@@ -10,6 +10,7 @@ from src.core.downloader import Downloader
 from src.core.models import Book
 from src.core.notifications import NotificationManager
 from src.core.storage import Storage
+from src.core.utils import open_in_system, safe_path_within
 
 
 class MyLibraryPage:
@@ -1185,7 +1186,7 @@ class MyLibraryPage:
         """Открывает файл системной программой"""
         try:
             if os.path.exists(file_path):
-                os.startfile(file_path) if os.name == 'nt' else os.system(f'xdg-open "{file_path}"')
+                open_in_system(file_path)
         except Exception as e:
             if self.notification_manager:
                 self.notification_manager.add_notification(
@@ -1211,10 +1212,10 @@ class MyLibraryPage:
     def _open_downloaded_book_folder(self, filename: str):
         """Открывает папку со скачанной книгой"""
         try:
-            file_path = os.path.join(self.downloader.download_path, filename)
+            file_path = safe_path_within(self.downloader.download_path, filename)
             if os.path.exists(file_path):
                 folder_path = os.path.dirname(os.path.abspath(file_path))
-                os.startfile(folder_path) if os.name == 'nt' else os.system(f'xdg-open "{folder_path}"')
+                open_in_system(folder_path)
             else:
                 if self.notification_manager:
                     self.notification_manager.add_notification(

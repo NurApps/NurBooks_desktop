@@ -6,6 +6,7 @@ from src.config import APP_VERSION, NURBOOKS_DOWNLOADS_PATH
 from src.core.models import UserSettings
 from src.core.notifications import NotificationManager
 from src.core.storage import Storage
+from src.core.utils import open_in_system
 
 
 class SettingsPage:
@@ -429,7 +430,7 @@ class SettingsPage:
         def _dl():
             try:
                 dest = os.path.join(tempfile.gettempdir(), f"NurBooks_{info.version}.exe")
-                download_update(info.download_url, dest)
+                download_update(info.download_url, dest, expected_sha256=info.sha256)
                 self._update_status_text.value = "Скачано! Запуск..."
                 self.page.update()
                 apply_update(dest)
@@ -524,9 +525,7 @@ class SettingsPage:
         """Показать папку со скачанными файлами"""
         try:
             download_path = self.settings.default_path
-            os.startfile(download_path) if os.name == "nt" else os.system(
-                f'xdg-open "{download_path}"'
-            )
+            open_in_system(download_path)
         except Exception:
             pass
 

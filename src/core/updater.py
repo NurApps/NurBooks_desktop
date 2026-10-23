@@ -12,11 +12,15 @@ from dataclasses import dataclass
 
 from src.config import APP_VERSION
 from src.core.logger import get_logger
+from src.core.utils import download_to_file
 
 logger = get_logger(__name__)
 
 REPO = "NurApps/NurBooks_desktop"
 API_URL = f"https://api.github.com/repos/{REPO}/releases"
+
+
+MAX_UPDATE_BYTES = 300 * 1024 * 1024
 
 
 @dataclass
@@ -26,6 +30,7 @@ class ReleaseInfo:
     is_beta: bool
     download_url: str
     body: str
+    sha256: str = ""
 
 
 def _parse_version(tag: str) -> tuple:
@@ -77,12 +82,16 @@ def check_latest(beta: bool = False) -> ReleaseInfo | None:
         if not exe_asset:
             continue
 
+        digest = str(exe_asset.get("digest") or "")
+        sha256 = digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else ""
+
         return ReleaseInfo(
             tag=tag,
             version=tag.lstrip("vV"),
             is_beta=is_prerelease,
             download_url=exe_asset["browser_download_url"],
             body=rel.get("body", ""),
+            sha256=sha256,
         )
     return None
 
@@ -92,30 +101,34 @@ def is_newer(installed: str, latest: str) -> bool:
     return _parse_version(latest) > _parse_version(installed)
 
 
-def download_update(url: str, dest: str, progress_callback=None):
-    """Скачивает EXE в dest."""
-    ctx = ssl.create_default_context()
-    req = urllib.request.Request(url, headers={"User-Agent": "NurBooks/1.0"})
-    resp = urllib.request.urlopen(req, context=ctx)
-    total = int(resp.headers.get("Content-Length", 0))
-    downloaded = 0
-    chunk_size = 8192
-
-    with open(dest, "wb") as f:
-        while True:
-            chunk = resp.read(chunk_size)
-            if not chunk:
-                break
-            f.write(chunk)
-            downloaded += len(chunk)
-            if progress_callback and total:
-                progress_callback(downloaded / total)
+def download_update(url: str, dest: str, progress_callback=None, expected_sha256: str = ""):
+    """Скачивает EXE в dest и проверяет SHA-256 из GitHub Releases."""
+    if not expected_sha256:
+        raise ValueError("SHA-256 обновления не указан — загрузка отклонена")
+    download_to_file(
+        url,
+        dest,
+        timeout=60,
+        max_bytes=MAX_UPDATE_BYTES,
+        progress_callback=progress_callback,
+        expected_sha256=expected_sha256,
+    )
+    with open(dest, "rb") as f:
+        if f.read(2) != b"MZ":
+            os.remove(dest)
+            raise ValueError("скачанный файл не является EXE")
 
 
 def apply_update(new_exe: str):
     """Запускает новый EXE, завершает текущий процесс."""
     if getattr(sys, "frozen", False):
-        subprocess.Popen([new_exe], shell=True)
+        path = os.path.realpath(new_exe)
+        if not os.path.isfile(path) or os.path.getsize(path) > MAX_UPDATE_BYTES:
+            raise ValueError("некорректный файл обновления")
+        with open(path, "rb") as f:
+            if f.read(2) != b"MZ":
+                raise ValueError("файл обновления повреждён")
+        subprocess.Popen([path], shell=False)
         os._exit(0)
     else:
         logger.info("Update skipped (not frozen)")

@@ -2,11 +2,16 @@ import os
 import shutil
 import sys
 
-import requests
-
-from src.config import DEFAULT_DATA_PATH, NURBOOKS_DOWNLOADS_PATH
+from src.config import BASE_PATH, DEFAULT_DATA_PATH, DEFAULT_PDFS_PATH, NURBOOKS_DOWNLOADS_PATH
 from src.core.models import Book
-from src.core.utils import convert_github_url, format_file_size
+from src.core.utils import (
+    convert_github_url,
+    download_to_file,
+    format_file_size,
+    safe_filename,
+    safe_path_within,
+    validate_pdf,
+)
 
 
 class Downloader:
@@ -23,31 +28,53 @@ class Downloader:
         return convert_github_url(url)
 
     def _get_book_filename(self, book: Book, original_filename: str = None) -> str:
+        """Генерирует безопасное стабильное имя файла на основе ID книги.
+
+        Название/имя из URL не может содержать путь, ``..`` или опасные
+        символы — иначе книга с враждебным title писала бы вне папки загрузок.
         """
-        Генерирует стабильное имя файла для книги на основе ID.
-        Это гарантирует, что файл останется найденным даже если название или URL изменятся.
+        candidate = ""
+        if original_filename and str(original_filename).lower().endswith(".pdf"):
+            candidate = os.path.splitext(str(original_filename))[0]
+        elif book.title:
+            candidate = str(book.title)
 
-        Args:
-            book: Объект книги
-            original_filename: Оригинальное имя из URL (опционально, для улучшенного имени)
+        clean_name = safe_filename(candidate, max_length=40)
+        if not clean_name:
+            return f"{int(book.id)}.pdf"
+        return f"{int(book.id)}_{clean_name}.pdf"
 
-        Returns:
-            Имя файла в формате: id_original_name.pdf или id.pdf
-        """
-        # Если у нас есть оригинальное имя (извлечено из URL), используем его
-        if original_filename and original_filename.endswith('.pdf'):
-            # Очищаем имя файла от специальных символов
-            clean_name = os.path.splitext(original_filename)[0]
-            clean_name = clean_name.replace(' ', '_')[:30]  # Ограничиваем длину
-            return f"{book.id}_{clean_name}.pdf"
+    def _resolve_local_source(self, pdf_path: str) -> str | None:
+        """Разрешает локальный PDF только внутри известных каталогов приложения."""
+        raw = str(pdf_path or "")
+        if raw.startswith(("\\\\", "//")):
+            return None
 
-        # Если имя файла от URL не подходит, используем название книги
-        if book.title:
-            clean_title = book.title.replace(' ', '_')[:30]
-            return f"{book.id}_{clean_title}.pdf"
+        candidates = []
+        if os.path.isabs(raw):
+            candidates.append(raw)
+        else:
+            candidates.append(os.path.join(BASE_PATH, raw))
+            candidates.append(os.path.join(os.getcwd(), raw))
+            candidates.append(os.path.join(DEFAULT_PDFS_PATH, os.path.basename(raw)))
 
-        # Резервный вариант - только ID
-        return f"{book.id}.pdf"
+        allowed_roots = [DEFAULT_PDFS_PATH, os.path.join(DEFAULT_DATA_PATH, "pdf_cache")]
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            allowed_roots.append(os.path.join(meipass, "pdfs"))
+
+        for candidate in candidates:
+            real = os.path.realpath(candidate)
+            if not os.path.isfile(real):
+                continue
+            for root in allowed_roots:
+                root_real = os.path.realpath(root)
+                try:
+                    if os.path.commonpath([root_real, real]) == root_real:
+                        return real
+                except ValueError:
+                    continue
+        return None
 
     def download_book(self, book: Book, custom_path: str | None = None) -> str:
         """
@@ -71,43 +98,28 @@ class Downloader:
             # Генерируем стабильное имя файла на основе ID
             filename = self._get_book_filename(book, original_filename)
 
-            full_path = os.path.join(save_path, filename)
+            full_path = safe_path_within(save_path, filename)
 
             # Если книга уже скачана
             if os.path.exists(full_path):
                 return full_path
 
             # Скачиваем книгу
-            if pdf_url.startswith('http'):
-                response = requests.get(pdf_url)
-                response.raise_for_status()  # Проверка на ошибки HTTP
-                with open(full_path, 'wb') as f:
-                    f.write(response.content)
+            if pdf_url.startswith(("http://", "https://")):
+                if pdf_url.startswith("http://"):
+                    raise ValueError("небезопасная ссылка: разрешён только https")
+                download_to_file(pdf_url, full_path, timeout=60)
+                if not validate_pdf(full_path):
+                    os.remove(full_path)
+                    raise ValueError("скачанный файл не является PDF")
             else:
-                # Если это локальный файл, копируем его
-                import shutil
-
-                source_path = pdf_url
-
-                # Логика поиска файла, если прямой путь не работает (адаптация под устройство)
-                if not os.path.exists(source_path):
-                    # 1. Пробуем найти в папке pdfs относительно текущей директории
-                    possible_path = os.path.join("pdfs", os.path.basename(pdf_url))
-                    if os.path.exists(possible_path):
-                        source_path = possible_path
-                    # 2. Пробуем найти внутри ресурсов EXE (если скомпилировано)
-                    # В Python 3.12+ нужно использовать getattr для доступа к _MEIPASS
-                    elif getattr(sys, 'frozen', False):
-                        meipass_path = getattr(sys, '_MEIPASS', None)
-                        if meipass_path:
-                            internal_path = os.path.join(meipass_path, "pdfs", os.path.basename(pdf_url))
-                            if os.path.exists(internal_path):
-                                source_path = internal_path
-
-                if os.path.exists(source_path):
-                    shutil.copy(source_path, full_path)
-                else:
+                source_path = self._resolve_local_source(pdf_url)
+                if not source_path:
                     raise FileNotFoundError(f"Файл книги не найден: {pdf_url}")
+                shutil.copy2(source_path, full_path)
+                if not validate_pdf(full_path):
+                    os.remove(full_path)
+                    raise ValueError("локальный файл не является PDF")
 
             return full_path
 
@@ -139,10 +151,10 @@ class Downloader:
             return []
 
     def delete_book(self, filename: str) -> bool:
-        """Удалить скачанную книгу"""
+        """Удалить скачанную книгу только внутри папки загрузок."""
         try:
-            file_path = os.path.join(self.download_path, filename)
-            if os.path.exists(file_path):
+            file_path = safe_path_within(self.download_path, filename)
+            if os.path.isfile(file_path):
                 os.remove(file_path)
                 return True
             return False
@@ -160,7 +172,7 @@ class Downloader:
         else:
             original_filename = os.path.basename(pdf_url)
         filename = self._get_book_filename(book, original_filename)
-        return os.path.join(self.cache_path, filename)
+        return safe_path_within(self.cache_path, filename)
 
     def get_cached_pdf(self, book: Book) -> str | None:
         """Возвращает путь к PDF из офлайн-кэша, если он там есть."""
@@ -227,7 +239,10 @@ class Downloader:
             # Генерируем стабильное имя файла (то же самое, что при скачивании)
             filename = self._get_book_filename(book, original_filename)
 
-            full_path = os.path.join(self.download_path, filename)
+            try:
+                full_path = safe_path_within(self.download_path, filename)
+            except ValueError:
+                return False, None
 
             # Проверяем, существует ли файл с новым именем
             if os.path.exists(full_path):
@@ -250,7 +265,13 @@ class Downloader:
 
             # Проверяем каждое старое имя
             for old_filename in old_filenames:
-                old_path = os.path.join(self.download_path, old_filename)
+                safe_name = safe_filename(old_filename)
+                if not safe_name:
+                    continue
+                try:
+                    old_path = safe_path_within(self.download_path, safe_name)
+                except ValueError:
+                    continue
                 if os.path.exists(old_path):
                     # Файл найден со старым именем - возвращаем его
                     # (не переименовываем, так как может быть несколько экземпляров)

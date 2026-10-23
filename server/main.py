@@ -1,6 +1,7 @@
 """
 NurBooks API Server — прокси между приложением и Firebase Firestore.
 """
+import hmac
 import os
 
 
@@ -28,7 +29,7 @@ def _load_env_file():
 _load_env_file()
 
 import firebase_service as fb  # noqa: E402
-from fastapi import Body, FastAPI, Header, HTTPException, Query, Request  # noqa: E402
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from models import (  # noqa: E402
@@ -50,6 +51,11 @@ from models import (  # noqa: E402
 from rate_limit import RateLimitMiddleware  # noqa: E402
 
 API_KEY = os.environ.get("NURBOOKS_API_KEY", "")
+# Отдельный ключ только для административных операций. Не попадает в клиент.
+ADMIN_KEY = os.environ.get("NURBOOKS_ADMIN_KEY", "")
+# Альтернатива ключу: Firebase custom claim "admin" или список uid через запятую.
+ADMIN_UIDS = {u.strip() for u in os.environ.get("NURBOOKS_ADMIN_UIDS", "").split(",") if u.strip()}
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(1024 * 1024)))
 APP_VERSION = "1.4.0 Beta"
 
 # Отключаем цветной логгер uvicorn (глючит на Render без TTY)
@@ -57,16 +63,6 @@ import logging  # noqa: E402
 
 logging.getLogger("uvicorn").handlers.clear()  # noqa: E402
 logging.getLogger("uvicorn.access").handlers.clear()  # noqa: E402
-
-
-def require_api_key(
-    api_key: str = Query(""),
-    x_api_key: str = Header(""),
-) -> None:
-    """Проверяет API-ключ: заголовок X-API-Key или query-параметр api_key (legacy)."""
-    key = (x_api_key or api_key).strip()
-    if API_KEY and key != API_KEY:
-        raise HTTPException(403, "Invalid API key")
 
 
 # Технические эндпоинты, доступные без API-ключа (мониторинг, cron-job, docs).
@@ -80,17 +76,25 @@ app = FastAPI(
 )
 
 
+def _secure_compare(a: str, b: str) -> bool:
+    return bool(a) and bool(b) and hmac.compare_digest(a, b)
+
+
 @app.middleware("http")
 async def api_key_guard(request: Request, call_next):
     """API-ключ для всех эндпоинтов, кроме технических (health-check и docs)."""
-    if API_KEY and request.url.path not in TECHNICAL_PATHS:
-        key = (
-            request.headers.get("X-API-Key", "")
-            or request.query_params.get("api_key", "")
-        ).strip()
-        if key != API_KEY:
+    if request.url.path not in TECHNICAL_PATHS:
+        length = request.headers.get("Content-Length", "")
+        if length.isdigit() and int(length) > MAX_BODY_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+        if API_KEY and not _secure_compare(request.headers.get("X-API-Key", "").strip(), API_KEY):
             return JSONResponse(status_code=403, content={"detail": "Invalid API key"})
-    return await call_next(request)
+
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    return response
 
 # CORS: по умолчанию закрыт, разрешённые origin'ы задаются переменной окружения.
 _cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
@@ -102,11 +106,18 @@ app.add_middleware(
 )
 
 # Rate limit: настраивается через RATE_LIMIT_MAX / RATE_LIMIT_WINDOW.
+# TRUST_FORWARDED_FOR=1 включайте только за доверенным прокси (Render).
 app.add_middleware(
     RateLimitMiddleware,
     max_requests=int(os.environ.get("RATE_LIMIT_MAX", "120")),
     window_seconds=int(os.environ.get("RATE_LIMIT_WINDOW", "60")),
     exempt_paths=["/", "/health", "/docs", "/redoc", "/openapi.json"],
+    trust_forwarded_for=os.environ.get("TRUST_FORWARDED_FOR", "0") == "1",
+    path_limits={
+        "/auth/": int(os.environ.get("RATE_LIMIT_AUTH_MAX", "10")),
+        "/books": int(os.environ.get("RATE_LIMIT_ADMIN_MAX", "60")),
+        "/authors": int(os.environ.get("RATE_LIMIT_ADMIN_MAX", "60")),
+    },
 )
 
 
@@ -117,24 +128,69 @@ def root():
 
 def require_firebase():
     if not fb.is_ready():
-        raise HTTPException(503, f"Firebase not ready: {fb.init_error()}")
+        logging.getLogger(__name__).error("Firebase unavailable: %s", fb.init_error())
+        raise HTTPException(503, "Service temporarily unavailable")
 
 
-def resolve_uid(authorization: str = Header("")) -> str:
-    """Возвращает uid из Bearer-токена, либо 'public' для анонимных запросов.
+def _extract_bearer(authorization: str) -> str:
+    """Достаёт токен из 'Bearer <token>' (регистронезависимо)."""
+    parts = (authorization or "").strip().split(None, 1)
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1].strip()
+    return ""
 
-    - Без токена: 'public' (анонимный доступ к общему скоупу).
-    - С невалидным/истёкшим токеном: HTTPException 401 (нельзя молча
-      деградировать сессию в общий скоуп).
-    - Старые данные без userId остаются доступными под скоупом 'public'.
+
+def require_uid(authorization: str = Header("")) -> str:
+    """Требует валидный Firebase ID-токен и возвращает uid.
+
+    Анонимного скоупа 'public' для записи больше нет: клиент автоматически
+    получает анонимную Firebase-сессию, поэтому у него всё равно есть токен.
     """
-    token = authorization.replace("Bearer ", "").strip()
+    token = _extract_bearer(authorization)
     if not token:
-        return "public"
+        raise HTTPException(401, "Authentication required")
     uid = fb.verify_token(token)
-    if uid:
-        return uid
-    raise HTTPException(401, "Invalid or expired token")
+    if not uid:
+        raise HTTPException(401, "Invalid or expired token")
+    return uid
+
+
+def require_admin(
+    authorization: str = Header(""),
+    x_admin_key: str = Header(""),
+) -> None:
+    """Проверяет права на изменение каталога/авторов.
+
+    Разрешено: отдельный NURBOOKS_ADMIN_KEY (только на сервере) либо
+    Firebase-токен с custom claim ``admin`` (или uid из NURBOOKS_ADMIN_UIDS).
+    Если админ-доступ не сконфигурирован — запрещаем всё (fail closed).
+    """
+    key = (x_admin_key or "").strip()
+    if ADMIN_KEY and _secure_compare(key, ADMIN_KEY):
+        return
+
+    token = _extract_bearer(authorization)
+    if token:
+        claims = fb.verify_token_claims(token)
+        if claims and (claims.get("admin") is True or claims.get("uid") in ADMIN_UIDS):
+            return
+
+    if not ADMIN_KEY and not ADMIN_UIDS:
+        raise HTTPException(503, "Admin access is not configured")
+    raise HTTPException(403, "Admin privileges required")
+
+
+def _sanitize_library(lib: dict, uid: str) -> dict:
+    """Скрывает список участников; код приглашения оставляет для участников/публичных."""
+    if not lib:
+        return lib
+    result = dict(lib)
+    members = result.get("memberUids", []) or []
+    is_member = result.get("ownerUid") == uid or uid in members
+    result.pop("memberUids", None)
+    if not is_member and result.get("visibility") != "public":
+        result.pop("inviteCode", None)
+    return result
 
 
 # ============ Books ============
@@ -173,7 +229,7 @@ def get_book(book_id: int):
 
 
 @app.post("/books")
-def create_book(data: BookCreate):
+def create_book(data: BookCreate, _: None = Depends(require_admin)):
     require_firebase()
     result = fb.add_book(data.model_dump())
     if result == "id_exists":
@@ -182,7 +238,7 @@ def create_book(data: BookCreate):
 
 
 @app.put("/books/{book_id}")
-def update_book(book_id: int, data: BookUpdate):
+def update_book(book_id: int, data: BookUpdate, _: None = Depends(require_admin)):
     require_firebase()
     existing = fb.book_doc(book_id)
     if not existing:
@@ -193,14 +249,14 @@ def update_book(book_id: int, data: BookUpdate):
 
 
 @app.delete("/books/{book_id}")
-def delete_book(book_id: int):
+def delete_book(book_id: int, _: None = Depends(require_admin)):
     require_firebase()
     fb.delete_book(book_id)
     return {"status": "success"}
 
 
 @app.delete("/books")
-def clear_books():
+def clear_books(_: None = Depends(require_admin)):
     require_firebase()
     fb.clear_books()
     return {"status": "success"}
@@ -238,7 +294,7 @@ def get_all_authors():
 
 
 @app.post("/authors")
-def create_author(data: AuthorCreate):
+def create_author(data: AuthorCreate, _: None = Depends(require_admin)):
     require_firebase()
     result = fb.add_author(data.model_dump())
     if result == "id_exists":
@@ -247,7 +303,7 @@ def create_author(data: AuthorCreate):
 
 
 @app.put("/authors")
-def save_authors(authors: list[dict] = Body(...)):
+def save_authors(authors: list[dict] = Body(...), _: None = Depends(require_admin)):
     require_firebase()
     fb.save_authors(authors)
     return {"status": "success"}
@@ -260,7 +316,7 @@ def save_authors(authors: list[dict] = Body(...)):
 def create_bookmark(data: BookmarkCreate, authorization: str = Header("")):
     require_firebase()
     payload = data.model_dump()
-    payload["userId"] = resolve_uid(authorization)
+    payload["userId"] = require_uid(authorization)
     bm = fb.add_bookmark(payload)
     return bm
 
@@ -269,20 +325,20 @@ def create_bookmark(data: BookmarkCreate, authorization: str = Header("")):
 def get_bookmarks(book_id: int = 0, authorization: str = Header("")):
     require_firebase()
     if book_id:
-        return fb.get_bookmarks_by_book(book_id, resolve_uid(authorization))
+        return fb.get_bookmarks_by_book(book_id, require_uid(authorization))
     return []
 
 
 @app.get("/bookmarks/with-books")
 def get_bookmarks_with_books(authorization: str = Header("")):
     require_firebase()
-    return fb.all_bookmarks_with_books(resolve_uid(authorization))
+    return fb.all_bookmarks_with_books(require_uid(authorization))
 
 
 @app.delete("/bookmarks/{bookmark_id}")
 def delete_bookmark(bookmark_id: str, authorization: str = Header("")):
     require_firebase()
-    fb.delete_bookmark(bookmark_id, resolve_uid(authorization))
+    fb.delete_bookmark(bookmark_id, require_uid(authorization))
     return {"status": "success"}
 
 
@@ -292,20 +348,20 @@ def delete_bookmark(bookmark_id: str, authorization: str = Header("")):
 @app.get("/favorites")
 def get_favorites(authorization: str = Header("")):
     require_firebase()
-    return {"favorites": fb.all_favorites(resolve_uid(authorization))}
+    return {"favorites": fb.all_favorites(require_uid(authorization))}
 
 
 @app.post("/favorites")
 def create_favorite(data: FavoriteCreate, authorization: str = Header("")):
     require_firebase()
-    fb.add_favorite(resolve_uid(authorization), data.bookId)
+    fb.add_favorite(require_uid(authorization), data.bookId)
     return {"status": "success"}
 
 
 @app.delete("/favorites/{book_id}")
 def delete_favorite(book_id: int, authorization: str = Header("")):
     require_firebase()
-    fb.remove_favorite(resolve_uid(authorization), book_id)
+    fb.remove_favorite(require_uid(authorization), book_id)
     return {"status": "success"}
 
 
@@ -315,20 +371,20 @@ def delete_favorite(book_id: int, authorization: str = Header("")):
 @app.get("/wishlist")
 def get_wishlist(authorization: str = Header("")):
     require_firebase()
-    return {"wishlist": fb.all_wishlist(resolve_uid(authorization))}
+    return {"wishlist": fb.all_wishlist(require_uid(authorization))}
 
 
 @app.post("/wishlist")
 def create_wishlist(data: WishlistCreate, authorization: str = Header("")):
     require_firebase()
-    fb.add_wishlist(resolve_uid(authorization), data.bookId)
+    fb.add_wishlist(require_uid(authorization), data.bookId)
     return {"status": "success"}
 
 
 @app.delete("/wishlist/{book_id}")
 def delete_wishlist(book_id: int, authorization: str = Header("")):
     require_firebase()
-    fb.remove_wishlist(resolve_uid(authorization), book_id)
+    fb.remove_wishlist(require_uid(authorization), book_id)
     return {"status": "success"}
 
 
@@ -338,13 +394,13 @@ def delete_wishlist(book_id: int, authorization: str = Header("")):
 @app.get("/books/{book_id}/ratings")
 def get_ratings(book_id: int, authorization: str = Header("")):
     require_firebase()
-    return fb.book_ratings(book_id, resolve_uid(authorization))
+    return fb.book_ratings(book_id, require_uid(authorization))
 
 
 @app.put("/ratings/{book_id}")
 def put_rating(book_id: int, data: RatingUpsert, authorization: str = Header("")):
     require_firebase()
-    uid = resolve_uid(authorization)
+    uid = require_uid(authorization)
     fb.upsert_rating(uid, book_id, data.rating, data.review, data.nickname)
     return fb.book_ratings(book_id, uid)
 
@@ -352,7 +408,7 @@ def put_rating(book_id: int, data: RatingUpsert, authorization: str = Header("")
 @app.delete("/ratings/{book_id}")
 def delete_rating(book_id: int, authorization: str = Header("")):
     require_firebase()
-    fb.delete_rating(resolve_uid(authorization), book_id)
+    fb.delete_rating(require_uid(authorization), book_id)
     return {"status": "success"}
 
 
@@ -362,7 +418,7 @@ def delete_rating(book_id: int, authorization: str = Header("")):
 @app.get("/analytics/stats")
 def get_reading_stats(days: int = Query(30, ge=1, le=90), authorization: str = Header("")):
     require_firebase()
-    return fb.reading_stats(resolve_uid(authorization), days)
+    return fb.reading_stats(require_uid(authorization), days)
 
 
 # ============ Leaderboard ============
@@ -380,32 +436,33 @@ def get_leaderboard(days: int = Query(7, ge=1, le=90), limit: int = Query(10, ge
 @app.post("/libraries")
 def create_library(data: LibraryCreate, authorization: str = Header("")):
     require_firebase()
-    uid = resolve_uid(authorization)
+    uid = require_uid(authorization)
     return fb.create_library(uid, data.title, data.description, data.visibility, data.bookIds)
 
 
 @app.get("/libraries")
 def get_libraries(authorization: str = Header("")):
     require_firebase()
-    return fb.list_libraries(resolve_uid(authorization))
+    uid = require_uid(authorization)
+    return [_sanitize_library(lib, uid) for lib in fb.list_libraries(uid)]
 
 
 @app.get("/libraries/{lib_id}")
 def get_library(lib_id: str, authorization: str = Header("")):
     require_firebase()
-    uid = resolve_uid(authorization)
+    uid = require_uid(authorization)
     lib = fb.get_library(lib_id)
     if not lib:
         raise HTTPException(404, "Library not found")
     if lib.get("visibility") != "public" and lib.get("ownerUid") != uid and uid not in lib.get("memberUids", []):
         raise HTTPException(403, "Private library")
-    return lib
+    return _sanitize_library(lib, uid)
 
 
 @app.put("/libraries/{lib_id}")
 def update_library(lib_id: str, data: LibraryUpdate, authorization: str = Header("")):
     require_firebase()
-    if not fb.update_library(lib_id, resolve_uid(authorization), data.model_dump(exclude_unset=True)):
+    if not fb.update_library(lib_id, require_uid(authorization), data.model_dump(exclude_unset=True)):
         raise HTTPException(403, "Only owner can edit library")
     return {"status": "success"}
 
@@ -413,7 +470,7 @@ def update_library(lib_id: str, data: LibraryUpdate, authorization: str = Header
 @app.delete("/libraries/{lib_id}")
 def delete_library(lib_id: str, authorization: str = Header("")):
     require_firebase()
-    if not fb.delete_library(lib_id, resolve_uid(authorization)):
+    if not fb.delete_library(lib_id, require_uid(authorization)):
         raise HTTPException(403, "Only owner can delete library")
     return {"status": "success"}
 
@@ -424,7 +481,7 @@ def join_library(lib_id: str, data: LibraryJoin, authorization: str = Header("")
     lib = fb.get_library(lib_id)
     if not lib:
         raise HTTPException(404, "Library not found")
-    joined = fb.join_library_by_code(resolve_uid(authorization), data.inviteCode)
+    joined = fb.join_library_by_code(require_uid(authorization), data.inviteCode)
     if not joined or joined != lib_id:
         raise HTTPException(403, "Invalid invite code")
     return {"status": "success"}
@@ -433,7 +490,7 @@ def join_library(lib_id: str, data: LibraryJoin, authorization: str = Header("")
 @app.post("/libraries/{lib_id}/books")
 def add_book_to_library(lib_id: str, data: FavoriteCreate, authorization: str = Header("")):
     require_firebase()
-    if not fb.add_book_to_library(lib_id, resolve_uid(authorization), data.bookId):
+    if not fb.add_book_to_library(lib_id, require_uid(authorization), data.bookId):
         raise HTTPException(403, "Only owner can edit library")
     return {"status": "success"}
 
@@ -441,7 +498,7 @@ def add_book_to_library(lib_id: str, data: FavoriteCreate, authorization: str = 
 @app.delete("/libraries/{lib_id}/books/{book_id}")
 def remove_book_from_library(lib_id: str, book_id: int, authorization: str = Header("")):
     require_firebase()
-    if not fb.remove_book_from_library(lib_id, resolve_uid(authorization), book_id):
+    if not fb.remove_book_from_library(lib_id, require_uid(authorization), book_id):
         raise HTTPException(403, "Only owner can edit library")
     return {"status": "success"}
 
@@ -449,13 +506,13 @@ def remove_book_from_library(lib_id: str, book_id: int, authorization: str = Hea
 @app.get("/libraries/{lib_id}/rating")
 def get_library_rating(lib_id: str, authorization: str = Header("")):
     require_firebase()
-    return fb.library_rating(lib_id, resolve_uid(authorization))
+    return fb.library_rating(lib_id, require_uid(authorization))
 
 
 @app.put("/libraries/{lib_id}/rating")
 def put_library_rating(lib_id: str, data: LibraryRatingUpsert, authorization: str = Header("")):
     require_firebase()
-    uid = resolve_uid(authorization)
+    uid = require_uid(authorization)
     if not fb.get_library(lib_id):
         raise HTTPException(404, "Library not found")
     return fb.rate_library(uid, lib_id, data.rating)
@@ -464,7 +521,7 @@ def put_library_rating(lib_id: str, data: LibraryRatingUpsert, authorization: st
 @app.delete("/libraries/{lib_id}/rating")
 def delete_library_rating(lib_id: str, authorization: str = Header("")):
     require_firebase()
-    return fb.remove_library_rating(resolve_uid(authorization), lib_id)
+    return fb.remove_library_rating(require_uid(authorization), lib_id)
 
 
 # ============ Reading Progress ============
@@ -473,21 +530,21 @@ def delete_library_rating(lib_id: str, authorization: str = Header("")):
 @app.put("/reading-progress/{book_id}")
 def save_progress(book_id: int, data: ReadingProgressSave, authorization: str = Header("")):
     require_firebase()
-    fb.save_reading_progress(book_id, data.page, resolve_uid(authorization))
+    fb.save_reading_progress(book_id, data.page, require_uid(authorization))
     return {"status": "success"}
 
 
 @app.get("/reading-progress/{book_id}")
 def get_progress(book_id: int, authorization: str = Header("")):
     require_firebase()
-    page = fb.get_reading_progress(book_id, resolve_uid(authorization))
+    page = fb.get_reading_progress(book_id, require_uid(authorization))
     return {"page": page} if page else {"page": None}
 
 
 @app.get("/reading-progress")
 def get_all_progress(authorization: str = Header("")):
     require_firebase()
-    return fb.all_reading_progress(resolve_uid(authorization))
+    return fb.all_reading_progress(require_uid(authorization))
 
 
 # ============ Analytics ============
@@ -496,14 +553,14 @@ def get_all_progress(authorization: str = Header("")):
 @app.post("/analytics/events")
 def log_event(data: AnalyticsEventCreate, authorization: str = Header("")):
     require_firebase()
-    fb.log_event(data.eventType, data.bookId, data.metadata, resolve_uid(authorization))
+    fb.log_event(data.eventType, data.bookId, data.metadata, require_uid(authorization))
     return {"status": "success"}
 
 
 @app.get("/analytics/history")
 def get_history(authorization: str = Header("")):
     require_firebase()
-    return fb.get_reading_history(resolve_uid(authorization))
+    return fb.get_reading_history(require_uid(authorization))
 
 
 @app.get("/analytics/books/{book_id}")
@@ -519,10 +576,8 @@ def get_analytics(book_id: int):
 def register_user(data: UserUpsert, authorization: str = Header("")):
     """Сохраняет профиль пользователя (ник) после регистрации."""
     require_firebase()
-    uid = resolve_uid(authorization)
-    if uid == "public":
-        raise HTTPException(401, "Authentication required")
-    fb.upsert_user(uid, data.nickname)
+    uid = require_uid(authorization)
+    fb.upsert_user(uid, data.nickname.strip())
     return {"status": "success"}
 
 
@@ -533,6 +588,6 @@ def register_user(data: UserUpsert, authorization: str = Header("")):
 def health():
     return {
         "status": "ok" if fb.is_ready() else "error",
-        "firebase": "ready" if fb.is_ready() else fb.init_error(),
+        "firebase": "ready" if fb.is_ready() else "unavailable",
         "version": APP_VERSION,
     }
