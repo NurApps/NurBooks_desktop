@@ -46,17 +46,22 @@ def init_error() -> str | None:
     return _init_error
 
 
-def verify_token(id_token: str) -> str | None:
-    """Проверяет Firebase ID-токен и возвращает uid пользователя (или None)."""
+def verify_token_claims(id_token: str) -> dict | None:
+    """Проверяет Firebase ID-токен и возвращает его claims (или None)."""
     if not id_token:
         return None
     try:
         from firebase_admin import auth as firebase_auth
-        decoded = firebase_auth.verify_id_token(id_token)
-        return decoded.get("uid")
+        return firebase_auth.verify_id_token(id_token)
     except Exception as e:
         print(f"[Firebase] Token verification failed: {e}", flush=True)
         return None
+
+
+def verify_token(id_token: str) -> str | None:
+    """Проверяет Firebase ID-токен и возвращает uid пользователя (или None)."""
+    claims = verify_token_claims(id_token)
+    return claims.get("uid") if claims else None
 
 
 _init_firebase()
@@ -345,15 +350,47 @@ def all_reading_progress(uid: str = "public") -> dict:
 
 # ---- Analytics Events ----
 
+ALLOWED_EVENT_TYPES = {"read", "read_open", "view", "download"}
+ALLOWED_METADATA_KEYS = {"page", "durationSeconds"}
+
+
+def _clean_event_metadata(metadata: dict | None) -> dict:
+    """Оставляет только безопасные поля и приводит числа к разумным границам."""
+    cleaned = {}
+    if not isinstance(metadata, dict):
+        return cleaned
+    if "page" in metadata:
+        try:
+            cleaned["page"] = max(0, min(1_000_000, int(metadata["page"])))
+        except (TypeError, ValueError):
+            pass
+    if "durationSeconds" in metadata:
+        try:
+            cleaned["durationSeconds"] = max(0, min(86_400, int(metadata["durationSeconds"])))
+        except (TypeError, ValueError):
+            pass
+    return {k: v for k, v in cleaned.items() if k in ALLOWED_METADATA_KEYS}
+
+
 def log_event(event_type: str, book_id: int, metadata: dict = None, uid: str = "public"):
-    event = {
+    """Пишет событие аналитики.
+
+    Клиент не может переопределить userId/bookId/timestamp/eventType: метаданные
+    очищаются по whitelist и добавляются до канонических полей.
+    """
+    if event_type not in ALLOWED_EVENT_TYPES:
+        return
+    try:
+        book_id = int(book_id)
+    except (TypeError, ValueError):
+        return
+    event = _clean_event_metadata(metadata)
+    event.update({
         "eventType": event_type,
         "bookId": book_id,
         "userId": uid,
         "timestamp": datetime.now().isoformat(),
-    }
-    if metadata:
-        event.update(metadata)
+    })
     _firestore.collection("analytics_events").add(event)
 
 
@@ -526,12 +563,12 @@ def _owner_nickname(uid: str) -> str:
     return _default_nickname(uid)
 
 
-def _generate_invite_code(length: int = 6) -> str:
-    import random
+def _generate_invite_code(length: int = 8) -> str:
+    import secrets
     import string
     alphabet = string.ascii_uppercase + string.digits
     while True:
-        code = "".join(random.choice(alphabet) for _ in range(length))
+        code = "".join(secrets.choice(alphabet) for _ in range(length))
         exists = False
         for d in _firestore.collection("libraries").where("inviteCode", "==", code).limit(1).stream():
             exists = True

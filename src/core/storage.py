@@ -1,14 +1,14 @@
+import hashlib
 import json
 import os
 import threading
 import time
-import urllib.request
 
 from src.config import DEFAULT_DATA_PATH, DEFAULT_PDFS_PATH, NURBOOKS_DOWNLOADS_PATH
 from src.core.author_manager import AuthorManager
 from src.core.database import Database
 from src.core.models import Author, Book, UserSettings
-from src.core.utils import convert_github_url
+from src.core.utils import convert_github_url, download_to_file, safe_filename, safe_path_within
 
 
 class Storage:
@@ -61,30 +61,35 @@ class Storage:
         Возвращает путь к скачанному файлу или None при ошибке.
         """
         try:
-            # Конвертируем URL в raw формат
             raw_url = self._convert_to_raw_url(github_url)
-
-            # Если это не URL, возвращаем None
-            if not raw_url.startswith(('http://', 'https://')):
+            if not raw_url.startswith("https://"):
                 return None
 
-            # Определяем имя файла
             if not filename:
                 filename = os.path.basename(raw_url.split('?')[0])
+            safe_name = safe_filename(filename)
+            if not safe_name:
+                return None
 
-            # Создаем папку загрузок, если не существует
             os.makedirs(self.downloads_path, exist_ok=True)
-
-            # Полный путь для сохранения
-            save_path = os.path.join(self.downloads_path, filename)
-
-            # Скачиваем файл
-            urllib.request.urlretrieve(raw_url, save_path)
-
+            save_path = safe_path_within(self.downloads_path, safe_name)
+            download_to_file(raw_url, save_path, timeout=60)
             return save_path
         except Exception as e:
             print(f"Ошибка скачивания из GitHub: {e}")
             return None
+
+    def _allowed_local_path(self, path: str) -> str | None:
+        """Возвращает путь, только если он внутри каталогов приложения."""
+        real = os.path.realpath(path)
+        for root in (DEFAULT_PDFS_PATH, os.path.join(DEFAULT_DATA_PATH, "pdf_cache"), self.downloads_path):
+            root_real = os.path.realpath(root)
+            try:
+                if os.path.isfile(real) and os.path.commonpath([root_real, real]) == root_real:
+                    return real
+            except ValueError:
+                continue
+        return None
 
     def download_book_pdf(self, book: Book) -> str | None:
         """
@@ -94,12 +99,13 @@ class Storage:
         if not book.pdf:
             return None
 
-        # Если это уже локальный путь и файл существует, возвращаем его
+        # Если это уже локальный путь внутри приложения — возвращаем его
         if os.path.exists(book.pdf):
-            return book.pdf
+            local = self._allowed_local_path(book.pdf)
+            if local:
+                return local
 
-        # Скачиваем из GitHub
-        filename = f"{book.title}.pdf" if book.title else os.path.basename(book.pdf)
+        filename = safe_filename(f"{book.title}.pdf") if book.title else os.path.basename(book.pdf)
         return self.download_from_github(book.pdf, filename)
 
     def _extract_initial_data(self):
@@ -149,33 +155,35 @@ class Storage:
             self._thumbnail_cache[cache_key] = None
             return None
 
-        # 1. Локальный файл — существует
-        if os.path.exists(book.cover):
-            self._thumbnail_cache[cache_key] = book.cover
-            return book.cover
+        # 1. Локальный файл — только внутри каталогов приложения
+        local = self._allowed_local_path(book.cover)
+        if local:
+            self._thumbnail_cache[cache_key] = local
+            return local
 
         # 2. Локальный файл в data/thumbnails/
-        filename = os.path.basename(book.cover)
-        thumbs_path = os.path.join(self.data_path, "thumbnails", filename)
+        filename = safe_filename(os.path.basename(book.cover))
+        if not filename:
+            filename = hashlib.sha256(str(book.cover).encode("utf-8")).hexdigest()[:32] + ".img"
+        thumbs_dir = os.path.join(self.data_path, "thumbnails")
+        thumbs_path = safe_path_within(thumbs_dir, filename)
 
-        # 3. URL — скачиваем и сохраняем локально
-        if book.cover.startswith(('http://', 'https://')):
+        # 3. URL — скачиваем и сохраняем локально (только https)
+        if book.cover.startswith("https://"):
             raw_url = book.cover.replace("/blob/", "/raw/") if "github.com" in book.cover else book.cover
 
-            # Если уже скачан — используем локальную копию
             if os.path.exists(thumbs_path):
                 self._thumbnail_cache[cache_key] = thumbs_path
                 return thumbs_path
 
-            # Скачиваем в фоне
             try:
-                os.makedirs(os.path.dirname(thumbs_path), exist_ok=True)
-                urllib.request.urlretrieve(raw_url, thumbs_path)
+                os.makedirs(thumbs_dir, exist_ok=True)
+                download_to_file(raw_url, thumbs_path, timeout=30, max_bytes=10 * 1024 * 1024)
                 self._thumbnail_cache[cache_key] = thumbs_path
                 return thumbs_path
             except Exception as e:
                 print(f"Ошибка скачивания обложки: {e}")
-                # fallback — возвращаем raw URL, Flet скачает сам
+                # fallback — возвращаем https URL, Flet скачает сам
                 self._thumbnail_cache[cache_key] = raw_url
                 return raw_url
 

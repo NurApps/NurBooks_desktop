@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from src.config import ADMIN_API_KEY as CONFIG_ADMIN_API_KEY
 from src.config import API_BASE_URL, DEFAULT_DATA_PATH, FirebaseConfig
 from src.config import API_KEY as CONFIG_API_KEY
 from src.core.logger import get_logger
@@ -19,6 +20,7 @@ logger = get_logger(__name__)
 
 API_BASE = API_BASE_URL.rstrip("/")
 API_KEY = CONFIG_API_KEY
+ADMIN_API_KEY = CONFIG_ADMIN_API_KEY
 
 _AUTH_TOKEN_FILE = os.path.join(DEFAULT_DATA_PATH, "auth.json")
 _IDENTITY_TOOLKIT_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
@@ -72,7 +74,8 @@ class _AuthSession:
     def _save(self):
         try:
             os.makedirs(os.path.dirname(_AUTH_TOKEN_FILE), exist_ok=True)
-            with open(_AUTH_TOKEN_FILE, "w", encoding="utf-8") as f:
+            tmp = f"{_AUTH_TOKEN_FILE}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump({
                     "id_token": self._id_token,
                     "uid": self._uid,
@@ -81,6 +84,9 @@ class _AuthSession:
                     "refresh_token": self._refresh_token,
                     "expires_at": self._expires_at,
                 }, f, ensure_ascii=False, indent=2)
+            if os.name != "nt":
+                os.chmod(tmp, 0o600)
+            os.replace(tmp, _AUTH_TOKEN_FILE)
         except Exception as e:
             logger.warning(f"Не удалось сохранить auth-сессию: {e}")
 
@@ -166,22 +172,32 @@ def _api_key_headers() -> dict:
     return headers
 
 
-def _request_headers() -> dict:
-    return {**_auth_headers(), **_api_key_headers()}
+def _admin_headers() -> dict:
+    headers = {}
+    if ADMIN_API_KEY:
+        headers["X-Admin-Key"] = ADMIN_API_KEY
+    return headers
+
+
+def _request_headers(admin: bool = False) -> dict:
+    headers = {**_auth_headers(), **_api_key_headers()}
+    if admin:
+        headers.update(_admin_headers())
+    return headers
 
 
 def _url(path: str) -> str:
     return f"{API_BASE}{path}"
 
 
-def _request(method: str, path: str, data: dict = None) -> tuple[int | None, Any | None]:
+def _request(method: str, path: str, data: dict = None, admin: bool = False) -> tuple[int | None, Any | None]:
     """Выполняет HTTP-запрос к серверу. Возвращает (status_code, body).
 
     При 401 автоматически пробует обновить сессию через refresh_token и
-    повторяет запрос один раз.
+    повторяет запрос один раз. ``admin=True`` добавляет X-Admin-Key.
     """
     for attempt in range(2):
-        headers = {"Content-Type": "application/json", **_request_headers()}
+        headers = {"Content-Type": "application/json", **_request_headers(admin=admin)}
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(_url(path), data=body, method=method, headers=headers)
         try:
@@ -217,18 +233,18 @@ def _get(path: str) -> Any | None:
     return body if status == 200 else None
 
 
-def _post(path: str, data: dict = None) -> Any | None:
-    status, body = _request("POST", path, data)
+def _post(path: str, data: dict = None, admin: bool = False) -> Any | None:
+    status, body = _request("POST", path, data, admin=admin)
     return body if status in (200, 201) else None
 
 
-def _put(path: str, data: dict = None) -> Any | None:
-    status, body = _request("PUT", path, data)
+def _put(path: str, data: dict = None, admin: bool = False) -> Any | None:
+    status, body = _request("PUT", path, data, admin=admin)
     return body if status in (200, 201) else None
 
 
-def _delete(path: str) -> bool:
-    status, _ = _request("DELETE", path)
+def _delete(path: str, admin: bool = False) -> bool:
+    status, _ = _request("DELETE", path, admin=admin)
     return status == 200
 
 
@@ -300,7 +316,7 @@ class FirebaseClient:
             "copyrightProtected": bool(book.copyright_protected),
             "viewCount": book.view_count,
             "downloadCount": book.download_count,
-        })
+        }, admin=True)
         if result is None:
             return "error"
         if isinstance(result, dict) and result.get("status") == "id_exists":
@@ -321,14 +337,14 @@ class FirebaseClient:
             "copyrightProtected": bool(book.copyright_protected),
             "viewCount": book.view_count,
             "downloadCount": book.download_count,
-        })
+        }, admin=True)
         return result is not None
 
     def delete_book(self, book_id: int) -> bool:
-        return _delete(f"/books/{book_id}")
+        return _delete(f"/books/{book_id}", admin=True)
 
     def clear_books(self) -> bool:
-        return _delete("/books")
+        return _delete("/books", admin=True)
 
     # ---- Analytics ----
 
@@ -527,7 +543,7 @@ class FirebaseClient:
         return data or []
 
     def add_author(self, author_data: dict) -> str:
-        result = _post("/authors", author_data)
+        result = _post("/authors", author_data, admin=True)
         if result is None:
             return "error"
         if isinstance(result, dict) and result.get("status") == "id_exists":
@@ -535,7 +551,7 @@ class FirebaseClient:
         return "success"
 
     def save_authors(self, authors_data: list[dict]) -> bool:
-        result = _put("/authors", authors_data)
+        result = _put("/authors", authors_data, admin=True)
         return result is not None
 
     # ---- Auth (Firebase Identity Toolkit через REST) ----

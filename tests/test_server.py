@@ -8,7 +8,11 @@ os.environ["NURBOOKS_API_KEY"] = ""
 main = importlib.import_module("main")
 import firebase_service as fb
 
+main.API_KEY = ""
+main.ADMIN_KEY = "admin-test"
+
 client = TestClient(main.app)
+ADMIN_HEADERS = {"X-Admin-Key": "admin-test"}
 
 
 def test_health_ok(monkeypatch):
@@ -57,16 +61,15 @@ def test_firebase_unavailable_returns_503(monkeypatch):
 def test_api_key_rejected(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     monkeypatch.setattr(main, "API_KEY", "secret-key")
-    r = client.get("/books", params={"api_key": "wrong"})
+    r = client.get("/books", headers={"X-API-Key": "wrong"})
     assert r.status_code == 403
 
 
-def test_api_key_accepted(monkeypatch):
+def test_api_key_in_query_is_not_accepted(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     monkeypatch.setattr(main, "API_KEY", "secret-key")
-    monkeypatch.setattr(fb, "all_books", lambda: [])
     r = client.get("/books", params={"api_key": "secret-key"})
-    assert r.status_code == 200
+    assert r.status_code == 403
 
 
 def test_api_key_accepted_via_header(monkeypatch):
@@ -96,7 +99,7 @@ def test_create_book_conflict(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     monkeypatch.setattr(fb, "add_book", lambda d: "id_exists")
     payload = {"id": 1, "title": "T", "author": "A", "category": "C", "pdf": "x.pdf"}
-    r = client.post("/books", json=payload)
+    r = client.post("/books", json=payload, headers=ADMIN_HEADERS)
     assert r.status_code == 409
 
 
@@ -104,8 +107,15 @@ def test_create_book_success(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     monkeypatch.setattr(fb, "add_book", lambda d: "success")
     payload = {"id": 2, "title": "T", "author": "A", "category": "C", "pdf": "x.pdf"}
-    r = client.post("/books", json=payload)
+    r = client.post("/books", json=payload, headers=ADMIN_HEADERS)
     assert r.status_code == 200
+
+
+def test_create_book_requires_admin(monkeypatch):
+    monkeypatch.setattr(fb, "is_ready", lambda: True)
+    payload = {"id": 3, "title": "T", "author": "A", "category": "C", "pdf": "x.pdf"}
+    r = client.post("/books", json=payload)
+    assert r.status_code == 403
 
 
 def test_get_book_not_found(monkeypatch):
@@ -123,12 +133,12 @@ def test_get_book_found(monkeypatch):
     assert r.json()["id"] == 5
 
 
-def test_resolve_uid_public_without_token(monkeypatch):
+def test_bookmarks_without_token_returns_401(monkeypatch):
     monkeypatch.setattr(fb, "is_ready", lambda: True)
     monkeypatch.setattr(fb, "verify_token", lambda t: None)
     monkeypatch.setattr(fb, "get_bookmarks_by_book", lambda book_id, uid: [])
     r = client.get("/bookmarks", params={"book_id": 1})
-    assert r.status_code == 200
+    assert r.status_code == 401
 
 
 def test_resolve_uid_from_valid_token(monkeypatch):
