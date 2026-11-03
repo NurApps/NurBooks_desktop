@@ -11,5 +11,5 @@ idna==3.15
 cryptography==50.0.0
 httplib2==0.32.0
 pyasn1==0.6.4
-msgpack==1.2.1
+msgpack==1.2.3
 h2==4.4.1
